@@ -133,9 +133,9 @@ function updatePlayButtons() {
   openPlayBtn.disabled = !canStart;
   openPlayBtn.textContent = canStart ? 'JUGAR' : 'PARTIDA EN CURSO';
 
-  const canOpenScene = Boolean(state.user && state.currentGroup?.id && state.gameState?.status === 'active');
+  const canOpenScene = Boolean(state.user && state.currentGroup?.id);
   openCrimeSceneBtn.disabled = !canOpenScene;
-  endGameBtn.disabled = !canOpenScene;
+  endGameBtn.disabled = !(canOpenScene && state.gameState?.status === 'active');
   renderCrimeScenePlayers();
 }
 
@@ -757,7 +757,10 @@ openPlayBtn.addEventListener('click', () => {
 closeCharacterSelectBtn.addEventListener('click', closeCharacterSelectModal);
 closeGameBtn.addEventListener('click', closeGameModal);
 openCrimeSceneBtn.addEventListener('click', async () => {
-  if (!state.currentGroup?.id || state.gameState?.status !== 'active') return;
+  if (!state.currentGroup?.id) {
+    alert('Debes unirte a un grupo antes de entrar a la partida.');
+    return;
+  }
 
   const myParticipant = (state.currentGroup?.participants || []).find((p) => p.uid === state.user?.uid);
   if (!myParticipant?.characterId) {
@@ -766,7 +769,9 @@ openCrimeSceneBtn.addEventListener('click', async () => {
     return;
   }
 
-  await ensureGameRole();
+  if (state.gameState?.status !== 'active') {
+    await ensureGameRole();
+  }
   renderPlayerProfile();
   subscribeGameChat();
   openGameModal();
@@ -801,7 +806,9 @@ confirmCharacterBtn.addEventListener('click', async () => {
       return;
     }
 
+    if (state.gameState?.status !== 'active') {
     await ensureGameRole();
+  }
     renderPlayerProfile();
     subscribeGameChat();
     closeCharacterSelectModal();
