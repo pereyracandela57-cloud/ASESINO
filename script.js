@@ -548,7 +548,7 @@ function renderCrimeScenePlayers() {
   state.selectedCrimeParticipantUid = null;
   killPlayerBtn.classList.add('hidden');
   killPlayerBtn.disabled = true;
-  sceneCharacterDetail.innerHTML = '<p class="meta">Haz click izquierdo para ver detalles y click derecho para intentar asesinar.</p>';
+  sceneCharacterDetail.innerHTML = '<p class="meta">Haz click en un jugador para ver sus características.</p>';
 
   participants.forEach((participant) => {
     const character = state.characters.find((item) => item.id === participant.characterId);
@@ -563,19 +563,9 @@ function renderCrimeScenePlayers() {
         ? `<h4>${character.nombre}</h4><p class="meta"><strong>Historia:</strong> ${character.historia}</p><p class="meta"><strong>Rasgos:</strong> ${character.rasgos}</p><p class="meta"><strong>Traumas:</strong> ${character.traumas}</p><p class="meta"><strong>Miedo:</strong> ${character.miedo}</p>${isParticipantDead(participant.uid) ? '<p class="meta"><strong>Estado:</strong> Eliminado</p>' : ''}`
         : '<p class="meta">Este jugador aún no eligió personaje.</p>';
 
-      killPlayerBtn.classList.add('hidden');
-      killPlayerBtn.disabled = true;
-    });
-
-    btn.addEventListener('contextmenu', (event) => {
-      event.preventDefault();
-      state.selectedCrimeParticipantUid = participant.uid;
       const showKill = canCurrentUserKill(participant);
       killPlayerBtn.classList.toggle('hidden', !showKill);
       killPlayerBtn.disabled = !showKill;
-      if (!showKill && state.gameRole !== 'asesino') {
-        alert('Solo el asesino puede ejecutar esta acción.');
-      }
     });
     scenePlayersList.appendChild(btn);
   });
