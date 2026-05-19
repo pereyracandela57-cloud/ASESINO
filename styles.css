@@ -135,6 +135,23 @@ textarea { min-height: 92px; resize: vertical; }
 .card h3 { margin-top: 0; color: #ff8a8a; }
 .meta { color: var(--muted); font-size: 0.88rem; }
 .empty-msg { color: #9b9b9b; margin-top: 14px; }
+.gallery-context-menu {
+  position: absolute;
+  z-index: 90;
+  display: grid;
+  gap: 6px;
+  min-width: 140px;
+  padding: 8px;
+  border-radius: 10px;
+  border: 1px solid #561212;
+  background: #120909;
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.6);
+}
+
+.danger {
+  border-color: #8f0000;
+  color: #ffacac;
+}
 
 .auth-panel {
   margin: 10px 0 20px;
@@ -324,4 +341,3 @@ textarea { min-height: 92px; resize: vertical; }
 }
 
 .crime-scene-layout { margin-top:16px; display:grid; grid-template-columns: 320px 1fr; gap:14px; }
-

@@ -53,6 +53,7 @@ const form = document.getElementById('character-form');
 const cancelBtn = document.getElementById('cancel-btn');
 const closeModalBtn = document.getElementById('close-modal-btn');
 const modalOverlay = document.getElementById('modal-overlay');
+const saveCharacterBtn = document.getElementById('save-character-btn');
 const galleryGrid = document.getElementById('gallery-grid');
 const emptyMsg = document.getElementById('empty-msg');
 const imageSource = document.getElementById('imageSource');
@@ -82,6 +83,9 @@ const playerProfile = document.getElementById('player-profile');
 const scenePlayersList = document.getElementById('scene-players-list');
 const sceneCharacterDetail = document.getElementById('scene-character-detail');
 const killPlayerBtn = document.getElementById('kill-player-btn');
+const galleryContextMenu = document.getElementById('gallery-context-menu');
+const contextEditBtn = document.getElementById('context-edit-btn');
+const contextDeleteBtn = document.getElementById('context-delete-btn');
 
 const state = {
   characters: [],
@@ -96,6 +100,8 @@ const state = {
   gameMessages: [],
   gameState: null,
   selectedCrimeParticipantUid: null,
+  editingCharacterId: null,
+  contextCharacterId: null,
 };
 
 function getRealGroupMembers() {
@@ -428,8 +434,43 @@ function openModal() {
 
 function closeModal() {
   form.reset();
+  state.editingCharacterId = null;
+  modalOverlay.querySelector('.modal-header h3').textContent = 'Nuevo personaje';
+  saveCharacterBtn.textContent = 'Guardar';
   updateImageSource();
   modalOverlay.classList.add('hidden');
+}
+
+function hideGalleryContextMenu() {
+  galleryContextMenu.classList.add('hidden');
+  state.contextCharacterId = null;
+}
+
+function openEditCharacter(characterId) {
+  const character = state.characters.find((item) => item.id === characterId);
+  if (!character) return;
+
+  state.editingCharacterId = characterId;
+  modalOverlay.querySelector('.modal-header h3').textContent = 'Editar personaje';
+  saveCharacterBtn.textContent = 'Guardar cambios';
+
+  document.getElementById('nombre').value = character.nombre || '';
+  document.getElementById('historia').value = character.historia || '';
+  document.getElementById('genero').value = character.genero || '';
+  document.getElementById('estatura').value = character.estatura || '';
+  document.getElementById('cabello').value = character.cabello || '';
+  document.getElementById('ojos').value = character.ojos || '';
+  document.getElementById('tez').value = character.tez || '';
+  document.getElementById('rasgos').value = character.rasgos || '';
+  document.getElementById('traumas').value = character.traumas || '';
+  document.getElementById('miedo').value = character.miedo || '';
+  document.getElementById('dialogo').value = character.dialogo || '';
+
+  const isUrlImage = typeof character.image === 'string' && character.image.startsWith('http');
+  imageSource.value = isUrlImage ? 'url' : 'file';
+  document.getElementById('imageUrl').value = isUrlImage ? character.image : '';
+  updateImageSource();
+  modalOverlay.classList.remove('hidden');
 }
 
 function updateImageSource() {
@@ -623,10 +664,24 @@ form.addEventListener('submit', async (event) => {
     createdByName: state.user.displayName || state.user.email || 'Usuario anónimo',
   };
 
+  if (state.editingCharacterId) {
+    const previousCharacter = state.characters.find((item) => item.id === state.editingCharacterId);
+    if (!previousCharacter) {
+      alert('No se encontró el personaje a editar.');
+      return;
+    }
+    character.createdAt = previousCharacter.createdAt || Date.now();
+    character.createdBy = previousCharacter.createdBy || state.user.uid;
+    character.createdByName = previousCharacter.createdByName || state.user.displayName || state.user.email || 'Usuario anónimo';
+  }
+
   if (selectedSource === 'url') {
     character.image = imageUrl;
   } else if (imageFile) {
     character.image = await fileToDataUrl(imageFile);
+  } else if (state.editingCharacterId) {
+    const previousCharacter = state.characters.find((item) => item.id === state.editingCharacterId);
+    character.image = previousCharacter?.image || '';
   }
 
   if (!character.image) {
@@ -635,7 +690,11 @@ form.addEventListener('submit', async (event) => {
   }
 
   try {
-    await push(charactersRef, character);
+    if (state.editingCharacterId) {
+      await set(ref(database, `characters/${state.editingCharacterId}`), character);
+    } else {
+      await push(charactersRef, character);
+    }
     closeModal();
   } catch (error) {
     console.error('Error guardando personaje en Firebase:', error);
@@ -666,6 +725,17 @@ function renderGallery() {
         ${character.dialogo ? `<p class="meta"><strong>Postmorten:</strong> ${character.dialogo}</p>` : ''}
       </div>
     `;
+    card.addEventListener('contextmenu', (event) => {
+      event.preventDefault();
+      if (!state.user) {
+        alert('Debes iniciar sesión para editar o eliminar personajes.');
+        return;
+      }
+      state.contextCharacterId = character.id;
+      galleryContextMenu.style.left = `${event.pageX}px`;
+      galleryContextMenu.style.top = `${event.pageY}px`;
+      galleryContextMenu.classList.remove('hidden');
+    });
     galleryGrid.appendChild(card);
   });
 }
@@ -739,6 +809,35 @@ openPlayBtn.addEventListener('click', () => {
   openCharacterSelectModal();
 });
 closeCharacterSelectBtn.addEventListener('click', closeCharacterSelectModal);
+contextEditBtn.addEventListener('click', () => {
+  if (!state.contextCharacterId) return;
+  const characterId = state.contextCharacterId;
+  hideGalleryContextMenu();
+  openEditCharacter(characterId);
+});
+
+contextDeleteBtn.addEventListener('click', async () => {
+  if (!state.contextCharacterId) return;
+  const characterId = state.contextCharacterId;
+  hideGalleryContextMenu();
+  const confirmed = confirm('¿Seguro que quieres eliminar este personaje? Esta acción no se puede deshacer.');
+  if (!confirmed) return;
+
+  try {
+    await remove(ref(database, `characters/${characterId}`));
+  } catch (error) {
+    console.error('Error eliminando personaje:', error);
+    alert('No se pudo eliminar el personaje. Intenta nuevamente.');
+  }
+});
+
+document.addEventListener('click', () => {
+  hideGalleryContextMenu();
+});
+
+document.addEventListener('keydown', (event) => {
+  if (event.key === 'Escape') hideGalleryContextMenu();
+});
 closeGameBtn.addEventListener('click', closeGameModal);
 openCrimeSceneBtn.addEventListener('click', async () => {
   if (!state.currentGroup?.id) {
