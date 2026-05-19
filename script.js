@@ -86,6 +86,8 @@ const killPlayerBtn = document.getElementById('kill-player-btn');
 const galleryContextMenu = document.getElementById('gallery-context-menu');
 const contextEditBtn = document.getElementById('context-edit-btn');
 const contextDeleteBtn = document.getElementById('context-delete-btn');
+const crimeContextMenu = document.getElementById('crime-context-menu');
+const crimeKillBtn = document.getElementById('crime-kill-btn');
 
 const state = {
   characters: [],
@@ -102,6 +104,7 @@ const state = {
   selectedCrimeParticipantUid: null,
   editingCharacterId: null,
   contextCharacterId: null,
+  contextCrimeTargetUid: null,
 };
 
 function getRealGroupMembers() {
@@ -446,6 +449,11 @@ function hideGalleryContextMenu() {
   state.contextCharacterId = null;
 }
 
+function hideCrimeContextMenu() {
+  crimeContextMenu.classList.add('hidden');
+  state.contextCrimeTargetUid = null;
+}
+
 function openEditCharacter(characterId) {
   const character = state.characters.find((item) => item.id === characterId);
   if (!character) return;
@@ -548,6 +556,20 @@ function renderCrimeScenePlayers() {
       const showKill = canCurrentUserKill(participant);
       killPlayerBtn.classList.toggle('hidden', !showKill);
       killPlayerBtn.disabled = !showKill;
+    });
+
+    btn.addEventListener('contextmenu', (event) => {
+      event.preventDefault();
+      const canKill = canCurrentUserKill(participant);
+      if (!canKill) {
+        hideCrimeContextMenu();
+        return;
+      }
+
+      state.contextCrimeTargetUid = participant.uid;
+      crimeContextMenu.style.left = `${event.pageX}px`;
+      crimeContextMenu.style.top = `${event.pageY}px`;
+      crimeContextMenu.classList.remove('hidden');
     });
     scenePlayersList.appendChild(btn);
   });
@@ -839,10 +861,26 @@ contextDeleteBtn.addEventListener('click', async () => {
 
 document.addEventListener('click', () => {
   hideGalleryContextMenu();
+  hideCrimeContextMenu();
 });
 
 document.addEventListener('keydown', (event) => {
-  if (event.key === 'Escape') hideGalleryContextMenu();
+  if (event.key === 'Escape') {
+    hideGalleryContextMenu();
+    hideCrimeContextMenu();
+  }
+});
+
+crimeKillBtn.addEventListener('click', async () => {
+  if (!state.contextCrimeTargetUid) return;
+  const targetUid = state.contextCrimeTargetUid;
+  hideCrimeContextMenu();
+  try {
+    await killParticipant(targetUid);
+  } catch (error) {
+    console.error('No se pudo asesinar al participante:', error);
+    alert('No se pudo completar el asesinato. Intenta de nuevo.');
+  }
 });
 closeGameBtn.addEventListener('click', closeGameModal);
 openCrimeSceneBtn.addEventListener('click', async () => {
