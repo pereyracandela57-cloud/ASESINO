@@ -135,3 +135,27 @@ textarea { min-height: 92px; resize: vertical; }
 .card h3 { margin-top: 0; color: #ff8a8a; }
 .meta { color: var(--muted); font-size: 0.88rem; }
 .empty-msg { color: #9b9b9b; margin-top: 14px; }
+
+.auth-panel {
+  margin: 10px 0 20px;
+  padding: 12px;
+  border: 1px solid #3b1111;
+  border-radius: 12px;
+  background: rgba(20, 0, 0, 0.4);
+}
+
+.auth-status {
+  margin: 0 0 10px;
+  color: #ffb5b5;
+  font-size: 0.9rem;
+}
+
+.auth-btn {
+  width: 100%;
+  margin-bottom: 8px;
+}
+
+.knife-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
