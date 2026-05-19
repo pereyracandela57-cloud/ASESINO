@@ -19,6 +19,7 @@
           <button class="menu-btn active" data-view="creation">Creación de Personajes</button>
           <button class="menu-btn" data-view="gallery">Galería de Personajes</button>
           <button class="menu-btn" data-view="suspects">Sospechosos</button>
+          <button class="menu-btn" data-view="crime-scene">Escena del crimen</button>
         </nav>
       </aside>
 
@@ -61,6 +62,14 @@
             </article>
           </div>
         </section>
+
+        <section id="crime-scene-view" class="view">
+          <header class="view-header">
+            <h2>Escena del crimen</h2>
+            <button id="open-crime-scene-btn" class="primary">ABRIR ESCENA</button>
+          </header>
+          <p class="meta">Accede aquí a la pantalla de juego durante la partida.</p>
+        </section>
       </main>
     </div>
 
@@ -94,6 +103,7 @@
           <header class="modal-header">
             <h3>Pantalla de juego</h3>
             <button type="button" id="close-game-btn" class="secondary">✕</button>
+            <button type="button" id="end-game-btn" class="primary">Terminar partida</button>
           </header>
 
           <article id="player-profile" class="player-profile"></article>
