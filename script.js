@@ -103,12 +103,26 @@ function getRealGroupMembers() {
   return (state.currentGroup?.participants || []).filter((member) => !member.fake);
 }
 
+function dedupeParticipants(participants = []) {
+  const map = new Map();
+  participants.forEach((member) => {
+    if (!member?.uid) return;
+    map.set(member.uid, member);
+  });
+  return Array.from(map.values());
+}
+
 function getTakenCharacterIds() {
   return getRealGroupMembers()
     .map((member) => member.characterId)
     .filter(Boolean);
 }
 
+
+function areAllRealPlayersReady(group = state.currentGroup) {
+  const realMembers = (group?.participants || []).filter((member) => !member.fake);
+  return realMembers.length > 0 && realMembers.every((member) => Boolean(member.characterId));
+}
 
 function canStartNewGame() {
   return !state.gameState || state.gameState.status !== 'active';
@@ -284,25 +298,35 @@ async function saveSelectedCharacterToGroup() {
 
   const groupRef = ref(database, `groups/${state.currentGroup.id}`);
   const usedCharacterIds = new Set((state.currentGroup.participants || []).map((member) => member.characterId).filter(Boolean));
-  const participants = (state.currentGroup.participants || []).map((member) => {
+  let participants = (state.currentGroup.participants || []).map((member) => {
     if (member.uid === state.user.uid) {
       usedCharacterIds.add(state.selectedCharacterId);
       return { ...member, characterId: state.selectedCharacterId };
     }
-    if (member.fake && !member.characterId) {
-      const freeCharacter = state.characters.find((character) => !usedCharacterIds.has(character.id));
-      if (freeCharacter) {
-        usedCharacterIds.add(freeCharacter.id);
-        return { ...member, characterId: freeCharacter.id };
-      }
-    }
     return member;
   });
 
+  if (areAllRealPlayersReady({ participants })) {
+    participants = participants.map((member) => {
+      if (member.fake && !member.characterId) {
+        const freeCharacter = state.characters.find((character) => !usedCharacterIds.has(character.id));
+        if (freeCharacter) {
+          usedCharacterIds.add(freeCharacter.id);
+          return { ...member, characterId: freeCharacter.id };
+        }
+      }
+      return member;
+    });
+  }
+
+  const finalParticipants = dedupeParticipants(participants);
+
   await set(groupRef, {
     ...state.currentGroup,
-    participants,
+    participants: finalParticipants,
   });
+
+  return finalParticipants;
 }
 
 menuButtons.forEach((button) => {
@@ -433,13 +457,14 @@ async function respondInvitation(invite, accepted) {
   const groupRef = ref(database, `groups/${invite.groupId}`);
 
   if (accepted) {
-    const currentGroup = state.currentGroup && state.currentGroup.id === invite.groupId
-      ? state.currentGroup
-      : null;
-    const participants = normalizeGroupMembers([
+    const groupSnapshot = await get(groupRef);
+    const storedGroup = groupSnapshot.val() || null;
+    const currentGroup = storedGroup || (state.currentGroup && state.currentGroup.id === invite.groupId ? state.currentGroup : null);
+
+    const participants = normalizeGroupMembers(dedupeParticipants([
       ...(currentGroup?.participants || []).filter((member) => !member.fake),
       { uid: state.user.uid, name: state.user.displayName || state.user.email || 'Invitado' },
-    ]);
+    ]));
 
     await set(groupRef, {
       ...(currentGroup || { ownerId: invite.fromUid, ownerName: invite.fromName, createdAt: Date.now() }),
@@ -683,6 +708,12 @@ onAuthStateChanged(auth, async (user) => {
       const data = snapshot.val() || {};
       const groups = Object.entries(data).map(([id, group]) => ({ id, ...group }));
       state.currentGroup = groups.find((group) => (group.participants || []).some((p) => p.uid === user.uid)) || null;
+      if (state.currentGroup) {
+        state.currentGroup = {
+          ...state.currentGroup,
+          participants: dedupeParticipants(state.currentGroup.participants || []),
+        };
+      }
       renderSuspects();
       updatePlayButtons();
     });
@@ -716,6 +747,14 @@ closeCharacterSelectBtn.addEventListener('click', closeCharacterSelectModal);
 closeGameBtn.addEventListener('click', closeGameModal);
 openCrimeSceneBtn.addEventListener('click', async () => {
   if (!state.currentGroup?.id || state.gameState?.status !== 'active') return;
+
+  const myParticipant = (state.currentGroup?.participants || []).find((p) => p.uid === state.user?.uid);
+  if (!myParticipant?.characterId) {
+    alert('Debes elegir un personaje antes de entrar a la partida.');
+    openCharacterSelectModal();
+    return;
+  }
+
   await ensureGameRole();
   renderPlayerProfile();
   subscribeGameChat();
@@ -742,7 +781,15 @@ confirmCharacterBtn.addEventListener('click', async () => {
   }
 
   try {
-    await saveSelectedCharacterToGroup();
+    const participants = await saveSelectedCharacterToGroup();
+
+    const realPlayersReady = areAllRealPlayersReady({ participants });
+    if (!realPlayersReady) {
+      closeCharacterSelectModal();
+      alert('Tu personaje fue guardado. La partida iniciará cuando todos los usuarios reales elijan personaje.');
+      return;
+    }
+
     await ensureGameRole();
     renderPlayerProfile();
     subscribeGameChat();
