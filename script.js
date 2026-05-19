@@ -144,13 +144,13 @@ function updatePlayButtons() {
   renderCrimeScenePlayers();
 }
 
-function openCharacterSelectModal() {
+function openCharacterSelectModal({ allowDuringActiveGame = false } = {}) {
   if (!state.user) {
     alert('Debes iniciar sesión para jugar.');
     return;
   }
 
-  if (!canStartNewGame()) {
+  if (!allowDuringActiveGame && !canStartNewGame()) {
     alert('La partida ya está en curso. Entra desde ESCENA DEL CRIMEN.');
     return;
   }
@@ -554,12 +554,18 @@ function renderCrimeScenePlayers() {
 }
 
 function syncCurrentGroupFromPresence() {
+  const currentParticipantsByUid = new Map((state.currentGroup?.participants || []).map((member) => [member.uid, member]));
+
   const participants = normalizeGroupMembers(
     dedupeParticipants(
-      state.onlineUsers.map((user) => ({
-        uid: user.uid,
-        name: user.name || user.email || 'Usuario',
-      })),
+      state.onlineUsers.map((user) => {
+        const existing = currentParticipantsByUid.get(user.uid);
+        return {
+          uid: user.uid,
+          name: user.name || user.email || 'Usuario',
+          characterId: existing?.characterId || null,
+        };
+      }),
     ),
   );
 
@@ -848,7 +854,7 @@ openCrimeSceneBtn.addEventListener('click', async () => {
   const myParticipant = (state.currentGroup?.participants || []).find((p) => p.uid === state.user?.uid);
   if (!myParticipant?.characterId) {
     alert('Debes elegir un personaje antes de entrar a la partida.');
-    openCharacterSelectModal();
+    openCharacterSelectModal({ allowDuringActiveGame: true });
     return;
   }
 
@@ -881,6 +887,10 @@ confirmCharacterBtn.addEventListener('click', async () => {
 
   try {
     const participants = await saveSelectedCharacterToGroup();
+    state.currentGroup = {
+      ...(state.currentGroup || {}),
+      participants: normalizeGroupMembers(participants),
+    };
 
     const realPlayersReady = areAllRealPlayersReady({ participants });
     if (!realPlayersReady) {
