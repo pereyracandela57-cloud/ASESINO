@@ -67,9 +67,11 @@ const onlineUsersList = document.getElementById('online-users-list');
 const groupCount = document.getElementById('group-count');
 const groupMembers = document.getElementById('group-members');
 const openPlayBtn = document.getElementById('open-play-btn');
+const openCharacterBtn = document.getElementById('open-character-btn');
 const characterSelectOverlay = document.getElementById('character-select-overlay');
 const closeCharacterSelectBtn = document.getElementById('close-character-select-btn');
 const characterOptions = document.getElementById('character-options');
+const characterPreview = document.getElementById('character-preview');
 const confirmCharacterBtn = document.getElementById('confirm-character-btn');
 const gameOverlay = document.getElementById('game-overlay');
 const closeGameBtn = document.getElementById('close-game-btn');
@@ -140,6 +142,7 @@ function updatePlayButtons() {
   const canStart = Boolean(state.user && state.currentGroup?.id && canStartNewGame());
   openPlayBtn.disabled = !canStart;
   openPlayBtn.textContent = canStart ? 'JUGAR' : 'PARTIDA EN CURSO';
+  openCharacterBtn.disabled = !(state.user && state.currentGroup?.id);
 
   const canOpenScene = Boolean(state.user && state.currentGroup?.id);
   openCrimeSceneBtn.disabled = !canOpenScene;
@@ -171,6 +174,7 @@ function openCharacterSelectModal({ allowDuringActiveGame = false } = {}) {
 
   state.selectedCharacterId = null;
   renderCharacterOptions();
+  renderCharacterPreview(null);
   confirmCharacterBtn.disabled = true;
   characterSelectOverlay.classList.remove('hidden');
 }
@@ -243,6 +247,7 @@ function renderPlayerProfile() {
       ${bloodBadge}
     </div>
     <h4>${name}</h4>
+    <p class="meta"><strong>Personaje elegido:</strong> ${character?.nombre || 'Sin asignar'}</p>
     <p class="meta"><strong>Rol secreto:</strong> ${roleLabel}</p>
     <p class="meta">Este rol solo lo ves tú.</p>
     ${isDead ? '<p class="meta"><strong>Estado:</strong> Eliminado (solo espectador)</p>' : ''}
@@ -338,9 +343,7 @@ function renderCharacterOptions() {
 
     if (!isTaken) {
       button.addEventListener('click', () => {
-        state.selectedCharacterId = character.id;
-        renderCharacterOptions();
-        confirmCharacterBtn.disabled = false;
+        renderCharacterPreview(character);
       });
     }
 
@@ -350,6 +353,30 @@ function renderCharacterOptions() {
 
     characterOptions.appendChild(button);
   });
+}
+
+function renderCharacterPreview(character) {
+  if (!character) {
+    characterPreview.innerHTML = '<p class="meta">Selecciona un personaje para ver su ficha completa.</p>';
+    return;
+  }
+
+  state.selectedCharacterId = character.id;
+  confirmCharacterBtn.disabled = false;
+  renderCharacterOptions();
+  characterPreview.innerHTML = `
+    <h4>${character.nombre}</h4>
+    <p class="meta"><strong>Historia:</strong> ${character.historia}</p>
+    <p class="meta"><strong>Género:</strong> ${character.genero}</p>
+    <p class="meta"><strong>Estatura:</strong> ${character.estatura}</p>
+    <p class="meta"><strong>Cabello:</strong> ${character.cabello}</p>
+    <p class="meta"><strong>Ojos:</strong> ${character.ojos}</p>
+    <p class="meta"><strong>Tez:</strong> ${character.tez}</p>
+    <p class="meta"><strong>Rasgos:</strong> ${character.rasgos}</p>
+    <p class="meta"><strong>Traumas:</strong> ${character.traumas}</p>
+    <p class="meta"><strong>Miedo:</strong> ${character.miedo}</p>
+    <p class="meta"><strong>Diálogo:</strong> ${character.dialogo || '—'}</p>
+  `;
 }
 
 async function saveSelectedCharacterToGroup() {
@@ -394,6 +421,12 @@ async function saveSelectedCharacterToGroup() {
   await set(groupRef, {
     ...latestGroup,
     participants: finalParticipants,
+  });
+  await set(ref(database, `selectedCharacters/${state.currentGroup.id}/${state.user.uid}`), {
+    uid: state.user.uid,
+    characterId: state.selectedCharacterId,
+    characterName: state.characters.find((item) => item.id === state.selectedCharacterId)?.nombre || '',
+    assignedAt: Date.now(),
   });
 
   return finalParticipants;
@@ -836,6 +869,9 @@ openPlayBtn.addEventListener('click', () => {
   views['crime-scene'].classList.add('active');
   openCharacterSelectModal();
 });
+openCharacterBtn.addEventListener('click', () => {
+  openCharacterSelectModal({ allowDuringActiveGame: true });
+});
 closeCharacterSelectBtn.addEventListener('click', closeCharacterSelectModal);
 contextEditBtn.addEventListener('click', () => {
   if (!state.contextCharacterId) return;
@@ -924,6 +960,12 @@ confirmCharacterBtn.addEventListener('click', async () => {
   }
 
   try {
+    const selectedCharacter = state.characters.find((item) => item.id === state.selectedCharacterId);
+    const confirmed = confirm(
+      `¿Seguro que quieres seleccionar a ${selectedCharacter?.nombre || 'este personaje'}? No podrás cambiarlo hasta que finalice la partida.`,
+    );
+    if (!confirmed) return;
+
     const participants = await saveSelectedCharacterToGroup();
     state.currentGroup = {
       ...(state.currentGroup || {}),
@@ -973,6 +1015,15 @@ killPlayerBtn.addEventListener('click', async () => {
 endGameBtn.addEventListener('click', async () => {
   if (!state.currentGroup?.id) return;
   try {
+    const groupRef = ref(database, `groups/${state.currentGroup.id}`);
+    const groupSnapshot = await get(groupRef);
+    const latestGroup = groupSnapshot.val() || state.currentGroup;
+    const clearedParticipants = (latestGroup.participants || []).map((member) => ({ ...member, characterId: null }));
+    await set(groupRef, {
+      ...latestGroup,
+      participants: clearedParticipants,
+    });
+    await remove(ref(database, `selectedCharacters/${state.currentGroup.id}`));
     await set(ref(database, `games/${state.currentGroup.id}`), {
       ...(state.gameState || {}),
       status: 'finished',

@@ -43,7 +43,10 @@
         <section id="suspects-view" class="view">
           <header class="view-header">
             <h2>Sospechosos en línea</h2>
-            <button id="open-play-btn" class="primary">JUGAR</button>
+            <div class="suspects-actions">
+              <button id="open-play-btn" class="primary">JUGAR</button>
+              <button id="open-character-btn" class="secondary">PERSONAJE</button>
+            </div>
           </header>
 
           <div class="suspects-layout">
@@ -89,7 +92,12 @@
         </header>
         <button id="confirm-character-btn" type="button" class="primary full-width">JUGAR</button>
         <p class="meta">Si un personaje ya está tomado en el grupo, aparecerá bloqueado.</p>
-        <div id="character-options" class="character-options"></div>
+        <div class="character-picker-layout">
+          <div id="character-options" class="character-options"></div>
+          <article id="character-preview" class="character-preview">
+            <p class="meta">Selecciona un personaje para ver su ficha completa.</p>
+          </article>
+        </div>
       </div>
     </div>
 

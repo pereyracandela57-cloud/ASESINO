@@ -45,6 +45,7 @@ body {
 .view { display: none; }
 .view.active { display: block; }
 .view-header { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+.suspects-actions { display: flex; gap: 8px; }
 .knife-btn, .primary, .secondary {
   border: 1px solid #7a0000;
   border-radius: 12px;
@@ -238,8 +239,21 @@ textarea { min-height: 92px; resize: vertical; }
 .character-options {
   margin-top: 12px;
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  grid-template-columns: 1fr;
   gap: 10px;
+}
+.character-picker-layout {
+  display: grid;
+  grid-template-columns: 280px 1fr;
+  gap: 12px;
+  align-items: start;
+}
+.character-preview {
+  margin-top: 12px;
+  border: 1px solid #4b1717;
+  border-radius: 12px;
+  padding: 12px;
+  background: rgba(0, 0, 0, 0.25);
 }
 
 .character-option {
