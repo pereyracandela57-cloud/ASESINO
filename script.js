@@ -1,3 +1,26 @@
+import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js';
+import {
+  getDatabase,
+  onValue,
+  push,
+  ref,
+} from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-database.js';
+
+const firebaseConfig = {
+  apiKey: 'AIzaSyBbeOiGbIhPG0UVUphpxeKKrFOzA9eKglw',
+  authDomain: 'aczino-577da.firebaseapp.com',
+  databaseURL: 'https://aczino-577da-default-rtdb.firebaseio.com',
+  projectId: 'aczino-577da',
+  storageBucket: 'aczino-577da.firebasestorage.app',
+  messagingSenderId: '831497584426',
+  appId: '1:831497584426:web:bc57aa1e3ab7cdef206853',
+  measurementId: 'G-5ZF6ZCK7BC',
+};
+
+const app = initializeApp(firebaseConfig);
+const database = getDatabase(app);
+const charactersRef = ref(database, 'characters');
+
 const menuButtons = document.querySelectorAll('.menu-btn');
 const views = {
   creation: document.getElementById('creation-view'),
@@ -85,6 +108,7 @@ form.addEventListener('submit', async (event) => {
     miedo: document.getElementById('miedo').value.trim(),
     dialogo: document.getElementById('dialogo').value.trim(),
     image: '',
+    createdAt: Date.now(),
   };
 
   if (selectedSource === 'url') {
@@ -98,9 +122,13 @@ form.addEventListener('submit', async (event) => {
     return;
   }
 
-  state.characters.push(character);
-  renderGallery();
-  closeModal();
+  try {
+    await push(charactersRef, character);
+    closeModal();
+  } catch (error) {
+    console.error('Error guardando personaje en Firebase:', error);
+    alert('No se pudo guardar el personaje. Revisa tu conexión o la configuración de Firebase.');
+  }
 });
 
 function renderGallery() {
@@ -137,5 +165,13 @@ function fileToDataUrl(file) {
     reader.readAsDataURL(file);
   });
 }
+
+onValue(charactersRef, (snapshot) => {
+  const data = snapshot.val() || {};
+  state.characters = Object.entries(data)
+    .map(([id, character]) => ({ id, ...character }))
+    .sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
+  renderGallery();
+});
 
 updateImageSource();
