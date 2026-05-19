@@ -8,6 +8,11 @@ import {
   remove,
   serverTimestamp,
   set,
+  query,
+  orderByChild,
+  limitToLast,
+  onChildAdded,
+  get,
 } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-database.js';
 import {
   getAuth,
@@ -69,6 +74,11 @@ const confirmCharacterBtn = document.getElementById('confirm-character-btn');
 const gameOverlay = document.getElementById('game-overlay');
 const closeGameBtn = document.getElementById('close-game-btn');
 
+const gameChatMessages = document.getElementById('game-chat-messages');
+const gameChatForm = document.getElementById('game-chat-form');
+const gameChatInput = document.getElementById('game-chat-input');
+const playerProfile = document.getElementById('player-profile');
+
 const state = {
   characters: [],
   user: null,
@@ -77,6 +87,10 @@ const state = {
   myInvites: [],
   presenceCleanup: null,
   selectedCharacterId: null,
+  gameRole: null,
+  gameChatJoinAt: null,
+  gameChatUnsubscribe: null,
+  gameMessages: [],
 };
 
 function getRealGroupMembers() {
@@ -112,10 +126,93 @@ function closeCharacterSelectModal() {
 
 function openGameModal() {
   gameOverlay.classList.remove('hidden');
+  gameOverlay.requestFullscreen?.().catch(() => {});
 }
 
 function closeGameModal() {
+  if (document.fullscreenElement === gameOverlay) {
+    document.exitFullscreen?.().catch(() => {});
+  }
+
+  if (state.gameChatUnsubscribe) {
+    state.gameChatUnsubscribe();
+    state.gameChatUnsubscribe = null;
+  }
+
+  state.gameMessages = [];
+  gameChatMessages.innerHTML = '';
   gameOverlay.classList.add('hidden');
+}
+
+
+function getMyCharacter() {
+  const myParticipant = (state.currentGroup?.participants || []).find((p) => p.uid === state.user?.uid);
+  if (!myParticipant?.characterId) return null;
+  return state.characters.find((character) => character.id === myParticipant.characterId) || null;
+}
+
+async function ensureGameRole() {
+  if (!state.currentGroup?.id || !state.user) return;
+  const gameStateRef = ref(database, `games/${state.currentGroup.id}`);
+  const snapshot = await get(gameStateRef);
+  let gameState = snapshot.val();
+
+  if (!gameState?.killerUid) {
+    const members = getRealGroupMembers();
+    const randomIndex = Math.floor(Math.random() * members.length);
+    gameState = {
+      killerUid: members[randomIndex]?.uid || state.user.uid,
+      createdAt: Date.now(),
+    };
+    await set(gameStateRef, gameState);
+  }
+
+  state.gameRole = gameState.killerUid === state.user.uid ? 'asesino' : 'civil';
+}
+
+function renderPlayerProfile() {
+  const character = getMyCharacter();
+  const image = character?.image || 'https://via.placeholder.com/320x320?text=Sin+foto';
+  const name = character?.nombre || state.user?.displayName || 'Jugador';
+  const roleLabel = state.gameRole === 'asesino' ? 'ASESINO' : 'CIVIL';
+  const bloodBadge = state.gameRole === 'asesino' ? '<span class="blood-drop" title="Asesino">🩸</span>' : '';
+
+  playerProfile.innerHTML = `
+    <div class="profile-image-wrap">
+      <img src="${image}" alt="${name}" class="profile-image" />
+      ${bloodBadge}
+    </div>
+    <h4>${name}</h4>
+    <p class="meta"><strong>Rol secreto:</strong> ${roleLabel}</p>
+    <p class="meta">Este rol solo lo ves tú.</p>
+  `;
+}
+
+function renderGameChat() {
+  gameChatMessages.innerHTML = state.gameMessages
+    .slice(-15)
+    .map((msg) => `<p><strong>${msg.name}:</strong> ${msg.text}</p>`)
+    .join('');
+  gameChatMessages.scrollTop = gameChatMessages.scrollHeight;
+}
+
+function subscribeGameChat() {
+  if (!state.currentGroup?.id) return;
+  if (state.gameChatUnsubscribe) state.gameChatUnsubscribe();
+
+  state.gameChatJoinAt = Date.now();
+  state.gameMessages = [];
+  renderGameChat();
+
+  const chatRef = query(ref(database, `gameChats/${state.currentGroup.id}`), orderByChild('createdAt'), limitToLast(15));
+  state.gameChatUnsubscribe = onChildAdded(chatRef, (snapshot) => {
+    const message = snapshot.val();
+    if (!message || message.createdAt < state.gameChatJoinAt) return;
+
+    state.gameMessages.push(message);
+    state.gameMessages = state.gameMessages.slice(-15);
+    renderGameChat();
+  });
 }
 
 function renderCharacterOptions() {
@@ -553,10 +650,32 @@ confirmCharacterBtn.addEventListener('click', async () => {
 
   try {
     await saveSelectedCharacterToGroup();
+    await ensureGameRole();
+    renderPlayerProfile();
+    subscribeGameChat();
     closeCharacterSelectModal();
     openGameModal();
   } catch (error) {
     console.error('No se pudo guardar el personaje seleccionado:', error);
     alert('No se pudo iniciar el juego. Intenta de nuevo.');
   }
+});
+
+
+gameChatForm.addEventListener('submit', async (event) => {
+  event.preventDefault();
+  if (!state.currentGroup?.id || !state.user) return;
+
+  const text = gameChatInput.value.trim();
+  if (!text) return;
+
+  const chatNode = ref(database, `gameChats/${state.currentGroup.id}`);
+  await push(chatNode, {
+    uid: state.user.uid,
+    name: state.user.displayName || state.user.email || 'Jugador',
+    text,
+    createdAt: Date.now(),
+  });
+
+  gameChatInput.value = '';
 });
