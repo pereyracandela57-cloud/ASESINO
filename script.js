@@ -81,6 +81,8 @@ const gameChatMessages = document.getElementById('game-chat-messages');
 const gameChatForm = document.getElementById('game-chat-form');
 const gameChatInput = document.getElementById('game-chat-input');
 const playerProfile = document.getElementById('player-profile');
+const scenePlayersList = document.getElementById('scene-players-list');
+const sceneCharacterDetail = document.getElementById('scene-character-detail');
 
 const state = {
   characters: [],
@@ -120,6 +122,7 @@ function updatePlayButtons() {
   const canOpenScene = Boolean(state.user && state.currentGroup?.id && state.gameState?.status === 'active');
   openCrimeSceneBtn.disabled = !canOpenScene;
   endGameBtn.disabled = !canOpenScene;
+  renderCrimeScenePlayers();
 }
 
 function openCharacterSelectModal() {
@@ -135,6 +138,12 @@ function openCharacterSelectModal() {
 
   if (!state.characters.length) {
     alert('No hay personajes disponibles todavía.');
+    return;
+  }
+
+  const myParticipant = (state.currentGroup?.participants || []).find((p) => p.uid === state.user.uid);
+  if (myParticipant?.characterId) {
+    alert('Ya elegiste personaje para esta partida.');
     return;
   }
 
@@ -274,9 +283,18 @@ async function saveSelectedCharacterToGroup() {
   if (!state.user || !state.selectedCharacterId || !state.currentGroup?.id) return;
 
   const groupRef = ref(database, `groups/${state.currentGroup.id}`);
+  const usedCharacterIds = new Set((state.currentGroup.participants || []).map((member) => member.characterId).filter(Boolean));
   const participants = (state.currentGroup.participants || []).map((member) => {
     if (member.uid === state.user.uid) {
+      usedCharacterIds.add(state.selectedCharacterId);
       return { ...member, characterId: state.selectedCharacterId };
+    }
+    if (member.fake && !member.characterId) {
+      const freeCharacter = state.characters.find((character) => !usedCharacterIds.has(character.id));
+      if (freeCharacter) {
+        usedCharacterIds.add(freeCharacter.id);
+        return { ...member, characterId: freeCharacter.id };
+      }
     }
     return member;
   });
@@ -430,6 +448,29 @@ async function respondInvitation(invite, accepted) {
   }
 
   await remove(inviteRef);
+}
+
+
+function renderCrimeScenePlayers() {
+  if (!scenePlayersList || !sceneCharacterDetail) return;
+  const participants = normalizeGroupMembers(state.currentGroup?.participants || []);
+
+  scenePlayersList.innerHTML = '';
+  sceneCharacterDetail.innerHTML = '<p class="meta">Haz click en un jugador para ver sus características.</p>';
+
+  participants.forEach((participant) => {
+    const character = state.characters.find((item) => item.id === participant.characterId);
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'character-option';
+    btn.innerHTML = `<strong>${participant.name}</strong><br><span class="meta">${character?.nombre || 'Sin personaje'}</span>`;
+    btn.addEventListener('click', () => {
+      sceneCharacterDetail.innerHTML = character
+        ? `<h4>${character.nombre}</h4><p class="meta"><strong>Historia:</strong> ${character.historia}</p><p class="meta"><strong>Rasgos:</strong> ${character.rasgos}</p><p class="meta"><strong>Traumas:</strong> ${character.traumas}</p><p class="meta"><strong>Miedo:</strong> ${character.miedo}</p>`
+        : '<p class="meta">Este jugador aún no eligió personaje.</p>';
+    });
+    scenePlayersList.appendChild(btn);
+  });
 }
 
 function renderSuspects() {
@@ -664,7 +705,13 @@ updateImageSource();
 updateAuthUI();
 renderSuspects();
 
-openPlayBtn.addEventListener('click', openCharacterSelectModal);
+openPlayBtn.addEventListener('click', () => {
+  menuButtons.forEach((b) => b.classList.remove('active'));
+  Object.values(views).forEach((view) => view.classList.remove('active'));
+  document.querySelector('[data-view="crime-scene"]').classList.add('active');
+  views['crime-scene'].classList.add('active');
+  openCharacterSelectModal();
+});
 closeCharacterSelectBtn.addEventListener('click', closeCharacterSelectModal);
 closeGameBtn.addEventListener('click', closeGameModal);
 openCrimeSceneBtn.addEventListener('click', async () => {
