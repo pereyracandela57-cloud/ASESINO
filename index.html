@@ -77,12 +77,27 @@
     </div>
 
     <div id="game-overlay" class="modal-overlay hidden">
-      <div class="modal-panel play-modal-panel">
-        <header class="modal-header">
-          <h3>Pantalla de juego</h3>
-          <button type="button" id="close-game-btn" class="secondary">✕</button>
-        </header>
-        <div class="empty-game-screen">Próximamente: aquí se mostrará el juego.</div>
+      <div class="game-screen">
+        <aside class="game-chat-panel">
+          <header class="game-panel-header">
+            <h3>Chat en vivo</h3>
+            <p class="meta">Máximo 15 mensajes visibles</p>
+          </header>
+          <div id="game-chat-messages" class="game-chat-messages"></div>
+          <form id="game-chat-form" class="game-chat-form">
+            <input id="game-chat-input" type="text" maxlength="200" placeholder="Escribe un mensaje..." required />
+            <button class="primary" type="submit">Enviar</button>
+          </form>
+        </aside>
+
+        <section class="game-profile-panel">
+          <header class="modal-header">
+            <h3>Pantalla de juego</h3>
+            <button type="button" id="close-game-btn" class="secondary">✕</button>
+          </header>
+
+          <article id="player-profile" class="player-profile"></article>
+        </section>
       </div>
     </div>
 
