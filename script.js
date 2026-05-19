@@ -46,6 +46,7 @@ const views = {
   creation: document.getElementById('creation-view'),
   gallery: document.getElementById('gallery-view'),
   suspects: document.getElementById('suspects-view'),
+  'crime-scene': document.getElementById('crime-scene-view'),
 };
 
 const addCharacterBtn = document.getElementById('add-character-btn');
@@ -73,6 +74,8 @@ const characterOptions = document.getElementById('character-options');
 const confirmCharacterBtn = document.getElementById('confirm-character-btn');
 const gameOverlay = document.getElementById('game-overlay');
 const closeGameBtn = document.getElementById('close-game-btn');
+const endGameBtn = document.getElementById('end-game-btn');
+const openCrimeSceneBtn = document.getElementById('open-crime-scene-btn');
 
 const gameChatMessages = document.getElementById('game-chat-messages');
 const gameChatForm = document.getElementById('game-chat-form');
@@ -91,6 +94,7 @@ const state = {
   gameChatJoinAt: null,
   gameChatUnsubscribe: null,
   gameMessages: [],
+  gameState: null,
 };
 
 function getRealGroupMembers() {
@@ -103,9 +107,29 @@ function getTakenCharacterIds() {
     .filter(Boolean);
 }
 
+
+function canStartNewGame() {
+  return !state.gameState || state.gameState.status !== 'active';
+}
+
+function updatePlayButtons() {
+  const canStart = Boolean(state.user && state.currentGroup?.id && canStartNewGame());
+  openPlayBtn.disabled = !canStart;
+  openPlayBtn.textContent = canStart ? 'JUGAR' : 'PARTIDA EN CURSO';
+
+  const canOpenScene = Boolean(state.user && state.currentGroup?.id && state.gameState?.status === 'active');
+  openCrimeSceneBtn.disabled = !canOpenScene;
+  endGameBtn.disabled = !canOpenScene;
+}
+
 function openCharacterSelectModal() {
   if (!state.user) {
     alert('Debes iniciar sesión para jugar.');
+    return;
+  }
+
+  if (!canStartNewGame()) {
+    alert('La partida ya está en curso. Entra desde ESCENA DEL CRIMEN.');
     return;
   }
 
@@ -163,11 +187,14 @@ async function ensureGameRole() {
     gameState = {
       killerUid: members[randomIndex]?.uid || state.user.uid,
       createdAt: Date.now(),
+      status: 'active',
     };
     await set(gameStateRef, gameState);
   }
 
+  state.gameState = gameState;
   state.gameRole = gameState.killerUid === state.user.uid ? 'asesino' : 'civil';
+  updatePlayButtons();
 }
 
 function renderPlayerProfile() {
@@ -284,6 +311,7 @@ function updateAuthUI() {
   }
 
   renderSuspects();
+  updatePlayButtons();
 }
 
 function openModal() {
@@ -587,6 +615,7 @@ onValue(presenceRef, (snapshot) => {
   const data = snapshot.val() || {};
   state.onlineUsers = Object.values(data).filter((user) => user?.online);
   renderSuspects();
+  updatePlayButtons();
 });
 
 onAuthStateChanged(auth, async (user) => {
@@ -606,6 +635,7 @@ onAuthStateChanged(auth, async (user) => {
       const data = snapshot.val() || {};
       state.myInvites = Object.values(data).filter((invite) => invite.status === 'pending');
       renderSuspects();
+      updatePlayButtons();
     });
 
     onValue(groupsRef, (snapshot) => {
@@ -613,11 +643,20 @@ onAuthStateChanged(auth, async (user) => {
       const groups = Object.entries(data).map(([id, group]) => ({ id, ...group }));
       state.currentGroup = groups.find((group) => (group.participants || []).some((p) => p.uid === user.uid)) || null;
       renderSuspects();
+      updatePlayButtons();
+    });
+
+    onValue(ref(database, 'games'), (snapshot) => {
+      const games = snapshot.val() || {};
+      const groupId = state.currentGroup?.id;
+      state.gameState = groupId ? games[groupId] || null : null;
+      updatePlayButtons();
     });
   } else {
     state.myInvites = [];
     state.currentGroup = null;
     renderSuspects();
+    updatePlayButtons();
   }
 });
 
@@ -628,6 +667,13 @@ renderSuspects();
 openPlayBtn.addEventListener('click', openCharacterSelectModal);
 closeCharacterSelectBtn.addEventListener('click', closeCharacterSelectModal);
 closeGameBtn.addEventListener('click', closeGameModal);
+openCrimeSceneBtn.addEventListener('click', async () => {
+  if (!state.currentGroup?.id || state.gameState?.status !== 'active') return;
+  await ensureGameRole();
+  renderPlayerProfile();
+  subscribeGameChat();
+  openGameModal();
+});
 
 characterSelectOverlay.addEventListener('click', (event) => {
   if (event.target === characterSelectOverlay) closeCharacterSelectModal();
@@ -661,6 +707,23 @@ confirmCharacterBtn.addEventListener('click', async () => {
   }
 });
 
+
+
+endGameBtn.addEventListener('click', async () => {
+  if (!state.currentGroup?.id) return;
+  try {
+    await set(ref(database, `games/${state.currentGroup.id}`), {
+      ...(state.gameState || {}),
+      status: 'finished',
+      endedAt: Date.now(),
+    });
+    closeGameModal();
+    alert('Partida finalizada. Ya puedes iniciar una nueva desde JUGAR.');
+  } catch (error) {
+    console.error('No se pudo terminar la partida:', error);
+    alert('No se pudo terminar la partida.');
+  }
+});
 
 gameChatForm.addEventListener('submit', async (event) => {
   event.preventDefault();
