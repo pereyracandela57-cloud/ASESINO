@@ -297,8 +297,19 @@ async function saveSelectedCharacterToGroup() {
   if (!state.user || !state.selectedCharacterId || !state.currentGroup?.id) return;
 
   const groupRef = ref(database, `groups/${state.currentGroup.id}`);
-  const usedCharacterIds = new Set((state.currentGroup.participants || []).map((member) => member.characterId).filter(Boolean));
-  let participants = (state.currentGroup.participants || []).map((member) => {
+  const groupSnapshot = await get(groupRef);
+  const latestGroup = groupSnapshot.val() || state.currentGroup;
+  const latestParticipants = latestGroup.participants || [];
+  const selectedIsTaken = latestParticipants.some(
+    (member) => !member.fake && member.uid !== state.user.uid && member.characterId === state.selectedCharacterId,
+  );
+
+  if (selectedIsTaken) {
+    throw new Error('CHARACTER_ALREADY_TAKEN');
+  }
+
+  const usedCharacterIds = new Set(latestParticipants.map((member) => member.characterId).filter(Boolean));
+  let participants = latestParticipants.map((member) => {
     if (member.uid === state.user.uid) {
       usedCharacterIds.add(state.selectedCharacterId);
       return { ...member, characterId: state.selectedCharacterId };
@@ -322,7 +333,7 @@ async function saveSelectedCharacterToGroup() {
   const finalParticipants = dedupeParticipants(participants);
 
   await set(groupRef, {
-    ...state.currentGroup,
+    ...latestGroup,
     participants: finalParticipants,
   });
 
@@ -797,6 +808,12 @@ confirmCharacterBtn.addEventListener('click', async () => {
     openGameModal();
   } catch (error) {
     console.error('No se pudo guardar el personaje seleccionado:', error);
+    if (error?.message === 'CHARACTER_ALREADY_TAKEN') {
+      alert('Ese personaje acaba de ser elegido por otro jugador. Elige uno disponible.');
+      renderCharacterOptions();
+      confirmCharacterBtn.disabled = true;
+      return;
+    }
     alert('No se pudo iniciar el juego. Intenta de nuevo.');
   }
 });
