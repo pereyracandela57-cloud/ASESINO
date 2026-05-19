@@ -39,7 +39,6 @@ const auth = getAuth(app);
 const provider = new GoogleAuthProvider();
 const charactersRef = ref(database, 'characters');
 const presenceRef = ref(database, 'presence');
-const groupsRef = ref(database, 'groups');
 
 const menuButtons = document.querySelectorAll('.menu-btn');
 const views = {
@@ -66,7 +65,6 @@ const authStatus = document.getElementById('auth-status');
 const onlineUsersList = document.getElementById('online-users-list');
 const groupCount = document.getElementById('group-count');
 const groupMembers = document.getElementById('group-members');
-const incomingInvites = document.getElementById('incoming-invites');
 const openPlayBtn = document.getElementById('open-play-btn');
 const characterSelectOverlay = document.getElementById('character-select-overlay');
 const closeCharacterSelectBtn = document.getElementById('close-character-select-btn');
@@ -90,7 +88,6 @@ const state = {
   user: null,
   onlineUsers: [],
   currentGroup: null,
-  myInvites: [],
   presenceCleanup: null,
   selectedCharacterId: null,
   gameRole: null,
@@ -484,62 +481,6 @@ function normalizeGroupMembers(rawMembers = []) {
   return [...realMembers, ...fakeMembers];
 }
 
-async function inviteToGroup(targetUser) {
-  if (!state.user) {
-    alert('Debes iniciar sesión para invitar a un grupo.');
-    return;
-  }
-
-  const groupPayload = {
-    ownerId: state.user.uid,
-    ownerName: state.user.displayName || state.user.email || 'Anfitrión',
-    participants: normalizeGroupMembers([
-      { uid: state.user.uid, name: state.user.displayName || state.user.email || 'Tú' },
-      { uid: targetUser.uid, name: targetUser.name },
-    ]),
-    createdAt: Date.now(),
-  };
-
-  const groupPush = await push(groupsRef, groupPayload);
-  const inviteRef = ref(database, `invitations/${targetUser.uid}/${groupPush.key}`);
-  await set(inviteRef, {
-    groupId: groupPush.key,
-    fromUid: state.user.uid,
-    fromName: state.user.displayName || state.user.email || 'Usuario',
-    groupOwner: groupPayload.ownerName,
-    createdAt: Date.now(),
-    status: 'pending',
-  });
-
-  alert(`Invitación enviada a ${targetUser.name}.`);
-}
-
-async function respondInvitation(invite, accepted) {
-  if (!state.user) return;
-
-  const inviteRef = ref(database, `invitations/${state.user.uid}/${invite.groupId}`);
-  const groupRef = ref(database, `groups/${invite.groupId}`);
-
-  if (accepted) {
-    const groupSnapshot = await get(groupRef);
-    const storedGroup = groupSnapshot.val() || null;
-    const currentGroup = storedGroup || (state.currentGroup && state.currentGroup.id === invite.groupId ? state.currentGroup : null);
-
-    const participants = normalizeGroupMembers(dedupeParticipants([
-      ...(currentGroup?.participants || []).filter((member) => !member.fake),
-      { uid: state.user.uid, name: state.user.displayName || state.user.email || 'Invitado' },
-    ]));
-
-    await set(groupRef, {
-      ...(currentGroup || { ownerId: invite.fromUid, ownerName: invite.fromName, createdAt: Date.now() }),
-      participants,
-    });
-  }
-
-  await remove(inviteRef);
-}
-
-
 function renderCrimeScenePlayers() {
   if (!scenePlayersList || !sceneCharacterDetail || !killPlayerBtn) return;
   const participants = normalizeGroupMembers(state.currentGroup?.participants || []);
@@ -571,6 +512,25 @@ function renderCrimeScenePlayers() {
   });
 }
 
+function syncCurrentGroupFromPresence() {
+  const participants = normalizeGroupMembers(
+    dedupeParticipants(
+      state.onlineUsers.map((user) => ({
+        uid: user.uid,
+        name: user.name || user.email || 'Usuario',
+      })),
+    ),
+  );
+
+  state.currentGroup = {
+    id: 'global-online-group',
+    ownerId: 'system',
+    ownerName: 'Sistema',
+    participants,
+    createdAt: Date.now(),
+  };
+}
+
 function renderSuspects() {
   const online = state.onlineUsers.filter((user) => user.uid !== state.user?.uid);
   onlineUsersList.innerHTML = '';
@@ -588,10 +548,7 @@ function renderSuspects() {
           <p class="suspect-name">${user.name}</p>
           <p class="meta">${user.email || 'Sin email público'}</p>
         </div>
-        <button class="primary">Invitar</button>
       `;
-
-      row.querySelector('button').addEventListener('click', () => inviteToGroup(user));
       onlineUsersList.appendChild(row);
     });
   }
@@ -601,26 +558,6 @@ function renderSuspects() {
   groupMembers.innerHTML = participants
     .map((member) => `<li>${member.name}${member.fake ? ' (falso)' : ''}</li>`)
     .join('');
-
-  incomingInvites.innerHTML = '';
-  if (!state.myInvites.length) {
-    incomingInvites.innerHTML = '<p class="empty-msg">No tienes invitaciones pendientes.</p>';
-  } else {
-    state.myInvites.forEach((invite) => {
-      const row = document.createElement('div');
-      row.className = 'invite-card';
-      row.innerHTML = `
-        <p><strong>${invite.fromName}</strong> te invitó a su grupo.</p>
-        <div class="invite-actions">
-          <button class="primary accept">Aceptar</button>
-          <button class="secondary reject">Rechazar</button>
-        </div>
-      `;
-      row.querySelector('.accept').addEventListener('click', () => respondInvitation(invite, true));
-      row.querySelector('.reject').addEventListener('click', () => respondInvitation(invite, false));
-      incomingInvites.appendChild(row);
-    });
-  }
 }
 
 googleLoginBtn.addEventListener('click', async () => {
@@ -753,6 +690,9 @@ onValue(charactersRef, (snapshot) => {
 onValue(presenceRef, (snapshot) => {
   const data = snapshot.val() || {};
   state.onlineUsers = Object.values(data).filter((user) => user?.online);
+  if (state.user) {
+    syncCurrentGroupFromPresence();
+  }
   renderSuspects();
   updatePlayButtons();
 });
@@ -769,28 +709,10 @@ onAuthStateChanged(auth, async (user) => {
   if (user) {
     setupPresence();
 
-    const myInvitesRef = ref(database, `invitations/${user.uid}`);
-    onValue(myInvitesRef, (snapshot) => {
-      const data = snapshot.val() || {};
-      state.myInvites = Object.values(data).filter((invite) => invite.status === 'pending');
-      renderSuspects();
-      updatePlayButtons();
-      updateGameChatAvailability();
-    });
-
-    onValue(groupsRef, (snapshot) => {
-      const data = snapshot.val() || {};
-      const groups = Object.entries(data).map(([id, group]) => ({ id, ...group }));
-      state.currentGroup = groups.find((group) => (group.participants || []).some((p) => p.uid === user.uid)) || null;
-      if (state.currentGroup) {
-        state.currentGroup = {
-          ...state.currentGroup,
-          participants: dedupeParticipants(state.currentGroup.participants || []),
-        };
-      }
-      renderSuspects();
-      updatePlayButtons();
-    });
+    syncCurrentGroupFromPresence();
+    renderSuspects();
+    updatePlayButtons();
+    updateGameChatAvailability();
 
     onValue(ref(database, 'games'), (snapshot) => {
       const games = snapshot.val() || {};
@@ -799,7 +721,6 @@ onAuthStateChanged(auth, async (user) => {
       updatePlayButtons();
     });
   } else {
-    state.myInvites = [];
     state.currentGroup = null;
     renderSuspects();
     updatePlayButtons();
