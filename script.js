@@ -5,6 +5,13 @@ import {
   push,
   ref,
 } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-database.js';
+import {
+  getAuth,
+  GoogleAuthProvider,
+  onAuthStateChanged,
+  signInWithPopup,
+  signOut,
+} from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js';
 
 const firebaseConfig = {
   apiKey: 'AIzaSyBbeOiGbIhPG0UVUphpxeKKrFOzA9eKglw',
@@ -19,6 +26,8 @@ const firebaseConfig = {
 
 const app = initializeApp(firebaseConfig);
 const database = getDatabase(app);
+const auth = getAuth(app);
+const provider = new GoogleAuthProvider();
 const charactersRef = ref(database, 'characters');
 
 const menuButtons = document.querySelectorAll('.menu-btn');
@@ -37,8 +46,11 @@ const emptyMsg = document.getElementById('empty-msg');
 const imageSource = document.getElementById('imageSource');
 const imageFileField = document.getElementById('imageFileField');
 const imageUrlField = document.getElementById('imageUrlField');
+const googleLoginBtn = document.getElementById('google-login-btn');
+const logoutBtn = document.getElementById('logout-btn');
+const authStatus = document.getElementById('auth-status');
 
-const state = { characters: [] };
+const state = { characters: [], user: null };
 
 menuButtons.forEach((button) => {
   button.addEventListener('click', () => {
@@ -49,7 +61,27 @@ menuButtons.forEach((button) => {
   });
 });
 
+function updateAuthUI() {
+  const isLoggedIn = Boolean(state.user);
+  addCharacterBtn.disabled = !isLoggedIn;
+  googleLoginBtn.classList.toggle('hidden', isLoggedIn);
+  logoutBtn.classList.toggle('hidden', !isLoggedIn);
+
+  if (isLoggedIn) {
+    const userName = state.user.displayName || state.user.email;
+    authStatus.textContent = `Sesión activa: ${userName}`;
+  } else {
+    authStatus.textContent = 'No autenticado';
+    closeModal();
+  }
+}
+
 function openModal() {
+  if (!state.user) {
+    alert('Debes iniciar sesión con Google para crear personajes.');
+    return;
+  }
+
   modalOverlay.classList.remove('hidden');
 }
 
@@ -77,6 +109,24 @@ function updateImageSource() {
   }
 }
 
+googleLoginBtn.addEventListener('click', async () => {
+  try {
+    await signInWithPopup(auth, provider);
+  } catch (error) {
+    console.error('Error iniciando sesión con Google:', error);
+    alert('No se pudo iniciar sesión con Google. Verifica la configuración de Firebase Auth.');
+  }
+});
+
+logoutBtn.addEventListener('click', async () => {
+  try {
+    await signOut(auth);
+  } catch (error) {
+    console.error('Error cerrando sesión:', error);
+    alert('No se pudo cerrar sesión. Intenta nuevamente.');
+  }
+});
+
 addCharacterBtn.addEventListener('click', openModal);
 cancelBtn.addEventListener('click', closeModal);
 closeModalBtn.addEventListener('click', closeModal);
@@ -90,6 +140,11 @@ modalOverlay.addEventListener('click', (event) => {
 
 form.addEventListener('submit', async (event) => {
   event.preventDefault();
+
+  if (!state.user) {
+    alert('Tu sesión expiró. Inicia sesión otra vez para guardar.');
+    return;
+  }
 
   const selectedSource = imageSource.value;
   const imageFile = document.getElementById('imageFile').files[0];
@@ -109,6 +164,8 @@ form.addEventListener('submit', async (event) => {
     dialogo: document.getElementById('dialogo').value.trim(),
     image: '',
     createdAt: Date.now(),
+    createdBy: state.user.uid,
+    createdByName: state.user.displayName || state.user.email || 'Usuario anónimo',
   };
 
   if (selectedSource === 'url') {
@@ -142,6 +199,7 @@ function renderGallery() {
       <img src="${character.image}" alt="${character.nombre}" />
       <div class="card-content">
         <h3>${character.nombre}</h3>
+        <p class="meta"><strong>Autor:</strong> ${character.createdByName || 'N/D'}</p>
         <p class="meta"><strong>Género:</strong> ${character.genero}</p>
         <p class="meta"><strong>Estatura:</strong> ${character.estatura}</p>
         <p class="meta"><strong>Cabello:</strong> ${character.cabello} | <strong>Ojos:</strong> ${character.ojos}</p>
@@ -174,4 +232,10 @@ onValue(charactersRef, (snapshot) => {
   renderGallery();
 });
 
+onAuthStateChanged(auth, (user) => {
+  state.user = user;
+  updateAuthUI();
+});
+
 updateImageSource();
+updateAuthUI();
