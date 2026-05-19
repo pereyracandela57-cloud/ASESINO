@@ -18,6 +18,7 @@
         <nav>
           <button class="menu-btn active" data-view="creation">Creación de Personajes</button>
           <button class="menu-btn" data-view="gallery">Galería de Personajes</button>
+          <button class="menu-btn" data-view="suspects">Sospechosos</button>
         </nav>
       </aside>
 
@@ -35,6 +36,29 @@
           </header>
           <div id="gallery-grid" class="gallery-grid"></div>
           <p id="empty-msg" class="empty-msg">No hay personajes registrados todavía.</p>
+        </section>
+
+        <section id="suspects-view" class="view">
+          <header class="view-header">
+            <h2>Sospechosos en línea</h2>
+          </header>
+
+          <div class="suspects-layout">
+            <article class="suspects-panel">
+              <h3>Usuarios conectados</h3>
+              <div id="online-users-list" class="suspects-list"></div>
+            </article>
+
+            <article class="suspects-panel">
+              <h3>Grupo actual (<span id="group-count">0</span> participantes)</h3>
+              <ul id="group-members" class="group-members"></ul>
+            </article>
+
+            <article class="suspects-panel">
+              <h3>Invitaciones recibidas</h3>
+              <div id="incoming-invites" class="invites-list"></div>
+            </article>
+          </div>
         </section>
       </main>
     </div>
