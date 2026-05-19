@@ -61,6 +61,13 @@ const onlineUsersList = document.getElementById('online-users-list');
 const groupCount = document.getElementById('group-count');
 const groupMembers = document.getElementById('group-members');
 const incomingInvites = document.getElementById('incoming-invites');
+const openPlayBtn = document.getElementById('open-play-btn');
+const characterSelectOverlay = document.getElementById('character-select-overlay');
+const closeCharacterSelectBtn = document.getElementById('close-character-select-btn');
+const characterOptions = document.getElementById('character-options');
+const confirmCharacterBtn = document.getElementById('confirm-character-btn');
+const gameOverlay = document.getElementById('game-overlay');
+const closeGameBtn = document.getElementById('close-game-btn');
 
 const state = {
   characters: [],
@@ -69,7 +76,92 @@ const state = {
   currentGroup: null,
   myInvites: [],
   presenceCleanup: null,
+  selectedCharacterId: null,
 };
+
+function getRealGroupMembers() {
+  return (state.currentGroup?.participants || []).filter((member) => !member.fake);
+}
+
+function getTakenCharacterIds() {
+  return getRealGroupMembers()
+    .map((member) => member.characterId)
+    .filter(Boolean);
+}
+
+function openCharacterSelectModal() {
+  if (!state.user) {
+    alert('Debes iniciar sesión para jugar.');
+    return;
+  }
+
+  if (!state.characters.length) {
+    alert('No hay personajes disponibles todavía.');
+    return;
+  }
+
+  state.selectedCharacterId = null;
+  renderCharacterOptions();
+  confirmCharacterBtn.disabled = true;
+  characterSelectOverlay.classList.remove('hidden');
+}
+
+function closeCharacterSelectModal() {
+  characterSelectOverlay.classList.add('hidden');
+}
+
+function openGameModal() {
+  gameOverlay.classList.remove('hidden');
+}
+
+function closeGameModal() {
+  gameOverlay.classList.add('hidden');
+}
+
+function renderCharacterOptions() {
+  characterOptions.innerHTML = '';
+  const takenIds = new Set(getTakenCharacterIds());
+
+  state.characters.forEach((character) => {
+    const isTaken = takenIds.has(character.id);
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = `character-option${isTaken ? ' blocked' : ''}`;
+    button.disabled = isTaken;
+    button.innerHTML = `<strong>${character.nombre}</strong><br><span class="meta">${isTaken ? 'Bloqueado' : 'Disponible'}</span>`;
+
+    if (!isTaken) {
+      button.addEventListener('click', () => {
+        state.selectedCharacterId = character.id;
+        renderCharacterOptions();
+        confirmCharacterBtn.disabled = false;
+      });
+    }
+
+    if (state.selectedCharacterId === character.id) {
+      button.classList.add('selected');
+    }
+
+    characterOptions.appendChild(button);
+  });
+}
+
+async function saveSelectedCharacterToGroup() {
+  if (!state.user || !state.selectedCharacterId || !state.currentGroup?.id) return;
+
+  const groupRef = ref(database, `groups/${state.currentGroup.id}`);
+  const participants = (state.currentGroup.participants || []).map((member) => {
+    if (member.uid === state.user.uid) {
+      return { ...member, characterId: state.selectedCharacterId };
+    }
+    return member;
+  });
+
+  await set(groupRef, {
+    ...state.currentGroup,
+    participants,
+  });
+}
 
 menuButtons.forEach((button) => {
   button.addEventListener('click', () => {
@@ -435,3 +527,36 @@ onAuthStateChanged(auth, async (user) => {
 updateImageSource();
 updateAuthUI();
 renderSuspects();
+
+openPlayBtn.addEventListener('click', openCharacterSelectModal);
+closeCharacterSelectBtn.addEventListener('click', closeCharacterSelectModal);
+closeGameBtn.addEventListener('click', closeGameModal);
+
+characterSelectOverlay.addEventListener('click', (event) => {
+  if (event.target === characterSelectOverlay) closeCharacterSelectModal();
+});
+
+gameOverlay.addEventListener('click', (event) => {
+  if (event.target === gameOverlay) closeGameModal();
+});
+
+confirmCharacterBtn.addEventListener('click', async () => {
+  if (!state.currentGroup) {
+    alert('Debes estar dentro de un grupo para jugar.');
+    return;
+  }
+
+  if (!state.selectedCharacterId) {
+    alert('Selecciona un personaje para continuar.');
+    return;
+  }
+
+  try {
+    await saveSelectedCharacterToGroup();
+    closeCharacterSelectModal();
+    openGameModal();
+  } catch (error) {
+    console.error('No se pudo guardar el personaje seleccionado:', error);
+    alert('No se pudo iniciar el juego. Intenta de nuevo.');
+  }
+});
