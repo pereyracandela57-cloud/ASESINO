@@ -422,12 +422,24 @@ async function saveSelectedCharacterToGroup() {
     ...latestGroup,
     participants: finalParticipants,
   });
-  await set(ref(database, `selectedCharacters/${state.currentGroup.id}/${state.user.uid}`), {
-    uid: state.user.uid,
-    characterId: state.selectedCharacterId,
-    characterName: state.characters.find((item) => item.id === state.selectedCharacterId)?.nombre || '',
-    assignedAt: Date.now(),
+  const assignedAt = Date.now();
+  const selectedCharactersRef = ref(database, `selectedCharacters/${state.currentGroup.id}`);
+  const selectedCharactersPayload = {};
+
+  finalParticipants.forEach((member) => {
+    if (!member.characterId) return;
+    const assignedCharacter = state.characters.find((item) => item.id === member.characterId);
+    selectedCharactersPayload[member.uid] = {
+      uid: member.uid,
+      name: member.name || '',
+      fake: Boolean(member.fake),
+      characterId: member.characterId,
+      characterName: assignedCharacter?.nombre || '',
+      assignedAt,
+    };
   });
+
+  await set(selectedCharactersRef, selectedCharactersPayload);
 
   return finalParticipants;
 }
