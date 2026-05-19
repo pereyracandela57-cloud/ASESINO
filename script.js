@@ -83,6 +83,7 @@ const gameChatInput = document.getElementById('game-chat-input');
 const playerProfile = document.getElementById('player-profile');
 const scenePlayersList = document.getElementById('scene-players-list');
 const sceneCharacterDetail = document.getElementById('scene-character-detail');
+const killPlayerBtn = document.getElementById('kill-player-btn');
 
 const state = {
   characters: [],
@@ -97,6 +98,7 @@ const state = {
   gameChatUnsubscribe: null,
   gameMessages: [],
   gameState: null,
+  selectedCrimeParticipantUid: null,
 };
 
 function getRealGroupMembers() {
@@ -173,6 +175,7 @@ function closeCharacterSelectModal() {
 
 function openGameModal() {
   gameOverlay.classList.remove('hidden');
+  updateGameChatAvailability();
   gameOverlay.requestFullscreen?.().catch(() => {});
 }
 
@@ -225,6 +228,7 @@ function renderPlayerProfile() {
   const image = character?.image || 'https://via.placeholder.com/320x320?text=Sin+foto';
   const name = character?.nombre || state.user?.displayName || 'Jugador';
   const roleLabel = state.gameRole === 'asesino' ? 'ASESINO' : 'CIVIL';
+  const isDead = isParticipantDead(state.user?.uid);
   const bloodBadge = state.gameRole === 'asesino' ? '<span class="blood-drop" title="Asesino">🩸</span>' : '';
 
   playerProfile.innerHTML = `
@@ -235,6 +239,7 @@ function renderPlayerProfile() {
     <h4>${name}</h4>
     <p class="meta"><strong>Rol secreto:</strong> ${roleLabel}</p>
     <p class="meta">Este rol solo lo ves tú.</p>
+    ${isDead ? '<p class="meta"><strong>Estado:</strong> Eliminado (solo espectador)</p>' : ''}
   `;
 }
 
@@ -265,6 +270,54 @@ function subscribeGameChat() {
   });
 }
 
+
+function getKilledUids() {
+  return state.gameState?.killedUids || {};
+}
+
+function isParticipantDead(uid) {
+  if (!uid) return false;
+  return Boolean(getKilledUids()[uid]);
+}
+
+function canCurrentUserKill(targetParticipant) {
+  if (!targetParticipant || targetParticipant.fake) return false;
+  if (state.gameRole !== 'asesino') return false;
+  if (state.gameState?.status !== 'active') return false;
+  if (targetParticipant.uid === state.user?.uid) return false;
+  if (isParticipantDead(targetParticipant.uid)) return false;
+  return true;
+}
+
+function updateGameChatAvailability() {
+  const dead = isParticipantDead(state.user?.uid);
+  gameChatInput.disabled = dead;
+  gameChatForm.querySelector('button[type="submit"]').disabled = dead;
+  gameChatInput.placeholder = dead
+    ? 'Has sido asesinado. Solo puedes observar la partida.'
+    : 'Escribe un mensaje...';
+}
+
+async function killParticipant(targetUid) {
+  if (!state.currentGroup?.id || !targetUid) return;
+  if (state.gameRole !== 'asesino') return;
+
+  const gameRef = ref(database, `games/${state.currentGroup.id}`);
+  const snapshot = await get(gameRef);
+  const latestGame = snapshot.val() || state.gameState || {};
+  const killedUids = latestGame.killedUids || {};
+
+  if (killedUids[targetUid]) return;
+
+  await set(gameRef, {
+    ...latestGame,
+    status: latestGame.status || 'active',
+    killedUids: {
+      ...killedUids,
+      [targetUid]: Date.now(),
+    },
+  });
+}
 function renderCharacterOptions() {
   characterOptions.innerHTML = '';
   const takenIds = new Set(getTakenCharacterIds());
@@ -488,22 +541,31 @@ async function respondInvitation(invite, accepted) {
 
 
 function renderCrimeScenePlayers() {
-  if (!scenePlayersList || !sceneCharacterDetail) return;
+  if (!scenePlayersList || !sceneCharacterDetail || !killPlayerBtn) return;
   const participants = normalizeGroupMembers(state.currentGroup?.participants || []);
 
   scenePlayersList.innerHTML = '';
+  state.selectedCrimeParticipantUid = null;
+  killPlayerBtn.classList.add('hidden');
+  killPlayerBtn.disabled = true;
   sceneCharacterDetail.innerHTML = '<p class="meta">Haz click en un jugador para ver sus características.</p>';
 
   participants.forEach((participant) => {
     const character = state.characters.find((item) => item.id === participant.characterId);
+    const deadLabel = isParticipantDead(participant.uid) ? ' · ☠️ Eliminado' : '';
     const btn = document.createElement('button');
     btn.type = 'button';
     btn.className = 'character-option';
-    btn.innerHTML = `<strong>${participant.name}</strong><br><span class="meta">${character?.nombre || 'Sin personaje'}</span>`;
+    btn.innerHTML = `<strong>${participant.name}</strong><br><span class="meta">${character?.nombre || 'Sin personaje'}${deadLabel}</span>`;
     btn.addEventListener('click', () => {
+      state.selectedCrimeParticipantUid = participant.uid;
       sceneCharacterDetail.innerHTML = character
-        ? `<h4>${character.nombre}</h4><p class="meta"><strong>Historia:</strong> ${character.historia}</p><p class="meta"><strong>Rasgos:</strong> ${character.rasgos}</p><p class="meta"><strong>Traumas:</strong> ${character.traumas}</p><p class="meta"><strong>Miedo:</strong> ${character.miedo}</p>`
+        ? `<h4>${character.nombre}</h4><p class="meta"><strong>Historia:</strong> ${character.historia}</p><p class="meta"><strong>Rasgos:</strong> ${character.rasgos}</p><p class="meta"><strong>Traumas:</strong> ${character.traumas}</p><p class="meta"><strong>Miedo:</strong> ${character.miedo}</p>${isParticipantDead(participant.uid) ? '<p class="meta"><strong>Estado:</strong> Eliminado</p>' : ''}`
         : '<p class="meta">Este jugador aún no eligió personaje.</p>';
+
+      const showKill = canCurrentUserKill(participant);
+      killPlayerBtn.classList.toggle('hidden', !showKill);
+      killPlayerBtn.disabled = !showKill;
     });
     scenePlayersList.appendChild(btn);
   });
@@ -713,6 +775,7 @@ onAuthStateChanged(auth, async (user) => {
       state.myInvites = Object.values(data).filter((invite) => invite.status === 'pending');
       renderSuspects();
       updatePlayButtons();
+      updateGameChatAvailability();
     });
 
     onValue(groupsRef, (snapshot) => {
@@ -827,6 +890,18 @@ confirmCharacterBtn.addEventListener('click', async () => {
 
 
 
+
+killPlayerBtn.addEventListener('click', async () => {
+  if (!state.selectedCrimeParticipantUid) return;
+  try {
+    await killParticipant(state.selectedCrimeParticipantUid);
+    killPlayerBtn.classList.add('hidden');
+  } catch (error) {
+    console.error('No se pudo asesinar al participante:', error);
+    alert('No se pudo completar el asesinato. Intenta de nuevo.');
+  }
+});
+
 endGameBtn.addEventListener('click', async () => {
   if (!state.currentGroup?.id) return;
   try {
@@ -846,6 +921,11 @@ endGameBtn.addEventListener('click', async () => {
 gameChatForm.addEventListener('submit', async (event) => {
   event.preventDefault();
   if (!state.currentGroup?.id || !state.user) return;
+
+  if (isParticipantDead(state.user.uid)) {
+    alert('Has sido asesinado y ya no puedes chatear en vivo.');
+    return;
+  }
 
   const text = gameChatInput.value.trim();
   if (!text) return;
