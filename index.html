@@ -41,6 +41,7 @@
         <section id="suspects-view" class="view">
           <header class="view-header">
             <h2>Sospechosos en línea</h2>
+            <button id="open-play-btn" class="primary">JUGAR</button>
           </header>
 
           <div class="suspects-layout">
@@ -61,6 +62,28 @@
           </div>
         </section>
       </main>
+    </div>
+
+    <div id="character-select-overlay" class="modal-overlay hidden">
+      <div class="modal-panel play-modal-panel">
+        <header class="modal-header">
+          <h3>Seleccionar personaje</h3>
+          <button type="button" id="close-character-select-btn" class="secondary">✕</button>
+        </header>
+        <button id="confirm-character-btn" type="button" class="primary full-width">JUGAR</button>
+        <p class="meta">Si un personaje ya está tomado en el grupo, aparecerá bloqueado.</p>
+        <div id="character-options" class="character-options"></div>
+      </div>
+    </div>
+
+    <div id="game-overlay" class="modal-overlay hidden">
+      <div class="modal-panel play-modal-panel">
+        <header class="modal-header">
+          <h3>Pantalla de juego</h3>
+          <button type="button" id="close-game-btn" class="secondary">✕</button>
+        </header>
+        <div class="empty-game-screen">Próximamente: aquí se mostrará el juego.</div>
+      </div>
     </div>
 
     <div id="modal-overlay" class="modal-overlay hidden">

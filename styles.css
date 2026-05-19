@@ -208,3 +208,51 @@ textarea { min-height: 92px; resize: vertical; }
   display: flex;
   gap: 8px;
 }
+
+.full-width {
+  width: 100%;
+  margin-bottom: 10px;
+}
+
+.play-modal-panel {
+  width: min(760px, 100%);
+}
+
+.character-options {
+  margin-top: 12px;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 10px;
+}
+
+.character-option {
+  border: 1px solid #5a1d1d;
+  border-radius: 12px;
+  padding: 10px;
+  background: rgba(0, 0, 0, 0.35);
+  color: var(--text);
+  cursor: pointer;
+  text-align: left;
+}
+
+.character-option.selected {
+  border-color: #ff3b3b;
+  box-shadow: 0 0 0 2px rgba(255, 59, 59, 0.4);
+}
+
+.character-option.blocked {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.empty-game-screen {
+  min-height: 280px;
+  border: 1px dashed #6b2626;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #ffb3b3;
+  text-align: center;
+  padding: 20px;
+}
