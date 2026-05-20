@@ -268,14 +268,13 @@ function subscribeGameChat() {
   if (!state.currentGroup?.id) return;
   if (state.gameChatUnsubscribe) state.gameChatUnsubscribe();
 
-  state.gameChatJoinAt = Date.now();
   state.gameMessages = [];
   renderGameChat();
 
   const chatRef = query(ref(database, `gameChats/${state.currentGroup.id}`), orderByChild('createdAt'), limitToLast(15));
   state.gameChatUnsubscribe = onChildAdded(chatRef, (snapshot) => {
     const message = snapshot.val();
-    if (!message || message.createdAt < state.gameChatJoinAt) return;
+    if (!message) return;
 
     state.gameMessages.push(message);
     state.gameMessages = state.gameMessages.slice(-15);
@@ -1097,6 +1096,15 @@ gameChatForm.addEventListener('submit', async (event) => {
     text,
     createdAt: Date.now(),
   });
+
+  const latestMessagesSnapshot = await get(query(chatNode, orderByChild('createdAt'), limitToLast(16)));
+  if (latestMessagesSnapshot.exists()) {
+    const entries = Object.entries(latestMessagesSnapshot.val());
+    if (entries.length > 15) {
+      const [oldestMessageKey] = entries[0];
+      await remove(ref(database, `gameChats/${state.currentGroup.id}/${oldestMessageKey}`));
+    }
+  }
 
   gameChatInput.value = '';
 });
