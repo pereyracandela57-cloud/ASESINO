@@ -125,7 +125,7 @@ function dedupeParticipants(participants = []) {
 }
 
 function getTakenCharacterIds() {
-  return getRealGroupMembers()
+  return (state.currentGroup?.participants || [])
     .map((member) => member.characterId)
     .filter(Boolean);
 }
@@ -389,7 +389,7 @@ async function saveSelectedCharacterToGroup() {
   const latestGroup = groupSnapshot.val() || state.currentGroup;
   const latestParticipants = latestGroup.participants || [];
   const selectedIsTaken = latestParticipants.some(
-    (member) => !member.fake && member.uid !== state.user.uid && member.characterId === state.selectedCharacterId,
+    (member) => member.uid !== state.user.uid && member.characterId === state.selectedCharacterId,
   );
 
   if (selectedIsTaken) {
