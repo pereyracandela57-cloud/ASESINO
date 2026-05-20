@@ -107,6 +107,8 @@ const state = {
   editingCharacterId: null,
   contextCharacterId: null,
   contextCrimeTargetUid: null,
+  persistedGroupParticipants: [],
+  groupUnsubscribe: null,
 };
 
 function getRealGroupMembers() {
@@ -621,7 +623,10 @@ function renderCrimeScenePlayers() {
 }
 
 function syncCurrentGroupFromPresence() {
-  const currentParticipantsByUid = new Map((state.currentGroup?.participants || []).map((member) => [member.uid, member]));
+  const sourceParticipants = state.persistedGroupParticipants.length
+    ? state.persistedGroupParticipants
+    : (state.currentGroup?.participants || []);
+  const currentParticipantsByUid = new Map(sourceParticipants.map((member) => [member.uid, member]));
 
   const participants = normalizeGroupMembers(
     dedupeParticipants(
@@ -643,6 +648,21 @@ function syncCurrentGroupFromPresence() {
     participants,
     createdAt: Date.now(),
   };
+}
+
+function subscribeCurrentGroup() {
+  if (state.groupUnsubscribe) return;
+  const groupRef = ref(database, 'groups/global-online-group');
+  state.groupUnsubscribe = onValue(groupRef, (snapshot) => {
+    const groupData = snapshot.val();
+    const participants = dedupeParticipants(groupData?.participants || []);
+    state.persistedGroupParticipants = participants;
+
+    if (!state.user) return;
+    syncCurrentGroupFromPresence();
+    renderSuspects();
+    updatePlayButtons();
+  });
 }
 
 function renderSuspects() {
@@ -851,6 +871,7 @@ onAuthStateChanged(auth, async (user) => {
 
   if (user) {
     setupPresence();
+    subscribeCurrentGroup();
 
     syncCurrentGroupFromPresence();
     renderSuspects();
@@ -864,6 +885,11 @@ onAuthStateChanged(auth, async (user) => {
       updatePlayButtons();
     });
   } else {
+    if (state.groupUnsubscribe) {
+      state.groupUnsubscribe();
+      state.groupUnsubscribe = null;
+    }
+    state.persistedGroupParticipants = [];
     state.currentGroup = null;
     renderSuspects();
     updatePlayButtons();
