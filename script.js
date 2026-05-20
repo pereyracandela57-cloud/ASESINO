@@ -628,17 +628,20 @@ function syncCurrentGroupFromPresence() {
     : (state.currentGroup?.participants || []);
   const currentParticipantsByUid = new Map(sourceParticipants.map((member) => [member.uid, member]));
 
+  const onlineParticipants = state.onlineUsers.map((user) => {
+    const existing = currentParticipantsByUid.get(user.uid);
+    return {
+      uid: user.uid,
+      name: user.name || user.email || 'Usuario',
+      characterId: existing?.characterId || null,
+      fake: false,
+    };
+  });
+
+  const persistedFakeParticipants = sourceParticipants.filter((member) => member?.fake);
+
   const participants = normalizeGroupMembers(
-    dedupeParticipants(
-      state.onlineUsers.map((user) => {
-        const existing = currentParticipantsByUid.get(user.uid);
-        return {
-          uid: user.uid,
-          name: user.name || user.email || 'Usuario',
-          characterId: existing?.characterId || null,
-        };
-      }),
-    ),
+    dedupeParticipants([...onlineParticipants, ...persistedFakeParticipants]),
   );
 
   state.currentGroup = {
