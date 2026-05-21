@@ -435,3 +435,8 @@ textarea { min-height: 92px; resize: vertical; }
   letter-spacing: 0.02em;
   font-size: 0.82rem;
 }
+
+.crime-scene-tabs .secondary.active {
+  outline: 1px solid var(--red-glow);
+  box-shadow: 0 0 12px rgba(255,0,0,0.35);
+}

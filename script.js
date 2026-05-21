@@ -81,6 +81,9 @@ const closeGameBtn = document.getElementById('close-game-btn');
 const endGameBtn = document.getElementById('end-game-btn');
 const openCrimeSceneBtn = document.getElementById('open-crime-scene-btn');
 
+const crimeTabCluesBtn = document.getElementById('crime-tab-clues');
+const crimeTabCharactersBtn = document.getElementById('crime-tab-characters');
+const crimeTabPhasesBtn = document.getElementById('crime-tab-phases');
 const gameChatMessages = document.getElementById('game-chat-messages');
 const gameChatForm = document.getElementById('game-chat-form');
 const gameChatInput = document.getElementById('game-chat-input');
@@ -476,6 +479,19 @@ menuButtons.forEach((button) => {
     views[button.dataset.view].classList.add('active');
   });
 });
+
+function openCrimeSceneCharactersTab() {
+  menuButtons.forEach((button) => button.classList.remove('active'));
+  Object.values(views).forEach((view) => view.classList.remove('active'));
+  document.querySelector('[data-view="crime-scene"]')?.classList.add('active');
+  views['crime-scene']?.classList.add('active');
+
+  crimeTabCluesBtn?.classList.remove('active');
+  crimeTabPhasesBtn?.classList.remove('active');
+  crimeTabCharactersBtn?.classList.add('active');
+}
+
+crimeTabCharactersBtn?.addEventListener('click', openCrimeSceneCharactersTab);
 
 function updateAuthUI() {
   const isLoggedIn = Boolean(state.user);
