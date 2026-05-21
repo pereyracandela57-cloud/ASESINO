@@ -81,6 +81,9 @@ const openCrimeSceneBtn = document.getElementById('open-crime-scene-btn');
 const gameChatMessages = document.getElementById('game-chat-messages');
 const gameChatForm = document.getElementById('game-chat-form');
 const gameChatInput = document.getElementById('game-chat-input');
+const activeChatSectionLabel = document.getElementById('active-chat-section');
+const crimeRoomGrid = document.getElementById('crime-room-grid');
+const crimeRoomCells = document.querySelectorAll('.crime-room-cell');
 const playerProfile = document.getElementById('player-profile');
 const scenePlayersList = document.getElementById('scene-players-list');
 const sceneCharacterDetail = document.getElementById('scene-character-detail');
@@ -101,6 +104,7 @@ const state = {
   gameRole: null,
   gameChatJoinAt: null,
   gameChatUnsubscribe: null,
+  currentCrimeSection: null,
   gameMessages: [],
   gameState: null,
   selectedCrimeParticipantUid: null,
@@ -264,14 +268,27 @@ function renderGameChat() {
   gameChatMessages.scrollTop = gameChatMessages.scrollHeight;
 }
 
+function renderCrimeSectionSelection() {
+  crimeRoomCells.forEach((cell) => {
+    cell.classList.toggle('selected', cell.dataset.section === state.currentCrimeSection);
+  });
+  activeChatSectionLabel.textContent = state.currentCrimeSection
+    ? `Sección activa: ${state.currentCrimeSection}`
+    : 'Sin sección seleccionada';
+}
+
 function subscribeGameChat() {
-  if (!state.currentGroup?.id) return;
+  if (!state.currentGroup?.id || !state.currentCrimeSection) return;
   if (state.gameChatUnsubscribe) state.gameChatUnsubscribe();
 
   state.gameMessages = [];
   renderGameChat();
 
-  const chatRef = query(ref(database, `gameChats/${state.currentGroup.id}`), orderByChild('createdAt'), limitToLast(15));
+  const chatRef = query(
+    ref(database, `gameChats/${state.currentGroup.id}/${state.currentCrimeSection}`),
+    orderByChild('createdAt'),
+    limitToLast(15),
+  );
   state.gameChatUnsubscribe = onChildAdded(chatRef, (snapshot) => {
     const message = snapshot.val();
     if (!message) return;
@@ -303,11 +320,14 @@ function canCurrentUserKill(targetParticipant) {
 
 function updateGameChatAvailability() {
   const dead = isParticipantDead(state.user?.uid);
-  gameChatInput.disabled = dead;
-  gameChatForm.querySelector('button[type="submit"]').disabled = dead;
+  const missingSection = !state.currentCrimeSection;
+  gameChatInput.disabled = dead || missingSection;
+  gameChatForm.querySelector('button[type="submit"]').disabled = dead || missingSection;
   gameChatInput.placeholder = dead
     ? 'Has sido asesinado. Solo puedes observar la partida.'
-    : 'Escribe un mensaje...';
+    : missingSection
+      ? 'Elige una sección de la sala para chatear.'
+      : 'Escribe un mensaje...';
 }
 
 async function killParticipant(targetUid) {
@@ -959,6 +979,15 @@ crimeKillBtn.addEventListener('click', async () => {
   }
 });
 closeGameBtn.addEventListener('click', closeGameModal);
+crimeRoomGrid.addEventListener('click', (event) => {
+  const sectionButton = event.target.closest('.crime-room-cell');
+  if (!sectionButton) return;
+  state.currentCrimeSection = sectionButton.dataset.section;
+  renderCrimeSectionSelection();
+  subscribeGameChat();
+  updateGameChatAvailability();
+});
+
 openCrimeSceneBtn.addEventListener('click', async () => {
   if (!state.currentGroup?.id) {
     alert('Debes unirte a un grupo antes de entrar a la partida.');
@@ -976,7 +1005,9 @@ openCrimeSceneBtn.addEventListener('click', async () => {
     await ensureGameRole();
   }
   renderPlayerProfile();
-  subscribeGameChat();
+  state.currentCrimeSection = null;
+  renderCrimeSectionSelection();
+  updateGameChatAvailability();
   openGameModal();
 });
 
@@ -1079,7 +1110,7 @@ endGameBtn.addEventListener('click', async () => {
 
 gameChatForm.addEventListener('submit', async (event) => {
   event.preventDefault();
-  if (!state.currentGroup?.id || !state.user) return;
+  if (!state.currentGroup?.id || !state.user || !state.currentCrimeSection) return;
 
   if (isParticipantDead(state.user.uid)) {
     alert('Has sido asesinado y ya no puedes chatear en vivo.');
@@ -1089,7 +1120,8 @@ gameChatForm.addEventListener('submit', async (event) => {
   const text = gameChatInput.value.trim();
   if (!text) return;
 
-  const chatNode = ref(database, `gameChats/${state.currentGroup.id}`);
+  const sectionPath = `gameChats/${state.currentGroup.id}/${state.currentCrimeSection}`;
+  const chatNode = ref(database, sectionPath);
   await push(chatNode, {
     uid: state.user.uid,
     name: state.user.displayName || state.user.email || 'Jugador',
@@ -1102,7 +1134,7 @@ gameChatForm.addEventListener('submit', async (event) => {
     const entries = Object.entries(latestMessagesSnapshot.val());
     if (entries.length > 15) {
       const [oldestMessageKey] = entries[0];
-      await remove(ref(database, `gameChats/${state.currentGroup.id}/${oldestMessageKey}`));
+      await remove(ref(database, `${sectionPath}/${oldestMessageKey}`));
     }
   }
 
