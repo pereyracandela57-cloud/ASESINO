@@ -39,6 +39,19 @@ const auth = getAuth(app);
 const provider = new GoogleAuthProvider();
 const charactersRef = ref(database, 'characters');
 const presenceRef = ref(database, 'presence');
+const REQUIRED_PARTICIPANTS = 10;
+const BOT_NAMES = [
+  'BOB',
+  'HERMANO DE BOB',
+  'BOB RUBIO',
+  'BOB MUJER',
+  'BOB TRANS LESBIANO',
+  'NOVIA IMAGINARIA DE BOB',
+  'MAMÁ DE BOB',
+  'DENTISTA DE BOB',
+  'ABUELA DE BOB',
+  'PAPÁ DE BOB',
+];
 
 const menuButtons = document.querySelectorAll('.menu-btn');
 const views = {
@@ -634,12 +647,12 @@ async function setupPresence() {
 
 function normalizeGroupMembers(rawMembers = []) {
   const realMembers = rawMembers.filter(Boolean);
-  if (realMembers.length >= 5) return realMembers;
+  if (realMembers.length >= REQUIRED_PARTICIPANTS) return realMembers;
 
-  const missingCount = 5 - realMembers.length;
+  const missingCount = REQUIRED_PARTICIPANTS - realMembers.length;
   const fakeMembers = Array.from({ length: missingCount }, (_, index) => ({
     uid: `fake-${index + 1}`,
-    name: `Usuario ${index + 1}`,
+    name: BOT_NAMES[index] || `BOT ${index + 1}`,
     fake: true,
   }));
 
