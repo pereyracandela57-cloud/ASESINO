@@ -112,6 +112,13 @@ const contextEditBtn = document.getElementById('context-edit-btn');
 const contextDeleteBtn = document.getElementById('context-delete-btn');
 const crimeContextMenu = document.getElementById('crime-context-menu');
 const crimeKillBtn = document.getElementById('crime-kill-btn');
+const crimeCharactersPanel = document.getElementById('crime-characters-panel');
+const crimeCharactersDetailPanel = document.getElementById('crime-characters-detail-panel');
+const crimePhasesPanel = document.getElementById('crime-phases-panel');
+const phasesList = document.getElementById('phases-list');
+const phaseProgress = document.getElementById('phase-progress');
+const nextPhaseBtn = document.getElementById('next-phase-btn');
+const DAY_PHASES = ['Noche', 'Amanecer', 'Medio día', 'Atardecer'];
 
 const state = {
   characters: [],
@@ -161,6 +168,10 @@ function areAllRealPlayersReady(group = state.currentGroup) {
 
 function canStartNewGame() {
   return !state.gameState || state.gameState.status !== 'active';
+}
+
+function getRealPlayerUids(group = state.currentGroup) {
+  return (group?.participants || []).filter((member) => !member.fake).map((member) => member.uid);
 }
 
 function updatePlayButtons() {
@@ -249,6 +260,8 @@ async function ensureGameRole() {
       killerUid: members[randomIndex]?.uid || state.user.uid,
       createdAt: Date.now(),
       status: 'active',
+      currentPhase: 1,
+      phaseVotes: {},
     };
     await set(gameStateRef, gameState);
   }
@@ -509,9 +522,62 @@ function openCrimeSceneCharactersTab() {
   crimeTabCluesBtn?.classList.remove('active');
   crimeTabPhasesBtn?.classList.remove('active');
   crimeTabCharactersBtn?.classList.add('active');
+  crimeCharactersPanel?.classList.remove('hidden');
+  crimeCharactersDetailPanel?.classList.remove('hidden');
+  crimePhasesPanel?.classList.add('hidden');
 }
 
 crimeTabCharactersBtn?.addEventListener('click', openCrimeSceneCharactersTab);
+
+function renderPhasesPanel() {
+  if (!phasesList || !phaseProgress || !nextPhaseBtn) return;
+  const currentPhase = Math.min(Math.max(state.gameState?.currentPhase || 1, 1), DAY_PHASES.length);
+  const phaseVotes = state.gameState?.phaseVotes || {};
+  const realPlayerUids = getRealPlayerUids();
+  const votesCount = realPlayerUids.filter((uid) => phaseVotes[uid]).length;
+  const alreadyVoted = Boolean(state.user?.uid && phaseVotes[state.user.uid]);
+
+  phasesList.innerHTML = DAY_PHASES.map((name, index) => (
+    `<li class="${index + 1 === currentPhase ? 'active' : ''}">Fase ${index + 1}: ${name}</li>`
+  )).join('');
+  phaseProgress.textContent = `Votos para avanzar: ${votesCount}/${realPlayerUids.length || 0}`;
+  nextPhaseBtn.disabled = !state.user || state.gameState?.status !== 'active' || alreadyVoted;
+  nextPhaseBtn.textContent = alreadyVoted ? 'VOTO REGISTRADO' : 'SIGUIENTE FASE';
+}
+
+function openCrimeScenePhasesTab() {
+  crimeTabCluesBtn?.classList.remove('active');
+  crimeTabCharactersBtn?.classList.remove('active');
+  crimeTabPhasesBtn?.classList.add('active');
+  crimeCharactersPanel?.classList.add('hidden');
+  crimeCharactersDetailPanel?.classList.add('hidden');
+  crimePhasesPanel?.classList.remove('hidden');
+  renderPhasesPanel();
+}
+
+crimeTabPhasesBtn?.addEventListener('click', openCrimeScenePhasesTab);
+
+async function voteNextPhase() {
+  if (!state.currentGroup?.id || !state.user || state.gameState?.status !== 'active') return;
+  const gameRef = ref(database, `games/${state.currentGroup.id}`);
+  const snapshot = await get(gameRef);
+  const latestGame = snapshot.val() || state.gameState || {};
+  const currentPhase = Math.min(Math.max(latestGame.currentPhase || 1, 1), DAY_PHASES.length);
+  const phaseVotes = latestGame.phaseVotes || {};
+  if (phaseVotes[state.user.uid]) return;
+
+  const updatedVotes = { ...phaseVotes, [state.user.uid]: true };
+  const realPlayerUids = getRealPlayerUids();
+  const allVoted = realPlayerUids.length > 0 && realPlayerUids.every((uid) => Boolean(updatedVotes[uid]));
+
+  await set(gameRef, {
+    ...latestGame,
+    status: latestGame.status || 'active',
+    currentPhase: allVoted ? (currentPhase % DAY_PHASES.length) + 1 : currentPhase,
+    phaseVotes: allVoted ? {} : updatedVotes,
+    phaseUpdatedAt: Date.now(),
+  });
+}
 
 function updateAuthUI() {
   const isLoggedIn = Boolean(state.user);
@@ -961,6 +1027,7 @@ onAuthStateChanged(auth, async (user) => {
       const groupId = state.currentGroup?.id;
       state.gameState = groupId ? games[groupId] || null : null;
       updatePlayButtons();
+      renderPhasesPanel();
     });
   } else {
     if (state.groupUnsubscribe) {
@@ -1206,4 +1273,13 @@ gameChatForm.addEventListener('submit', async (event) => {
   }
 
   gameChatInput.value = '';
+});
+
+nextPhaseBtn?.addEventListener('click', async () => {
+  try {
+    await voteNextPhase();
+  } catch (error) {
+    console.error('No se pudo avanzar de fase:', error);
+    alert('No se pudo registrar el voto para avanzar de fase.');
+  }
 });
