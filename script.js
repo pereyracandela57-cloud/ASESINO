@@ -265,7 +265,7 @@ function renderPlayerProfile() {
 
 function renderGameChat() {
   gameChatMessages.innerHTML = state.gameMessages
-    .slice(-15)
+     .slice(-10)
     .map((msg) => `<p><strong>${msg.name}:</strong> ${msg.text}</p>`)
     .join('');
   gameChatMessages.scrollTop = gameChatMessages.scrollHeight;
@@ -290,14 +290,14 @@ function subscribeGameChat() {
   const chatRef = query(
     ref(database, `gameChats/${state.currentGroup.id}/${state.currentCrimeSection}`),
     orderByChild('createdAt'),
-    limitToLast(15),
+    limitToLast(10),
   );
   state.gameChatUnsubscribe = onChildAdded(chatRef, (snapshot) => {
     const message = snapshot.val();
     if (!message) return;
 
     state.gameMessages.push(message);
-    state.gameMessages = state.gameMessages.slice(-15);
+    state.gameMessages = state.gameMessages.slice(-10);
     renderGameChat();
   });
 }
@@ -466,6 +466,13 @@ async function saveSelectedCharacterToGroup() {
   await set(selectedCharactersRef, selectedCharactersPayload);
 
   return finalParticipants;
+}
+
+function switchToCrimeSceneView() {
+  menuButtons.forEach((b) => b.classList.remove('active'));
+  Object.values(views).forEach((view) => view.classList.remove('active'));
+  document.querySelector('[data-view="crime-scene"]').classList.add('active');
+  views['crime-scene'].classList.add('active');
 }
 
 menuButtons.forEach((button) => {
@@ -943,10 +950,7 @@ updateAuthUI();
 renderSuspects();
 
 openPlayBtn.addEventListener('click', () => {
-  menuButtons.forEach((b) => b.classList.remove('active'));
-  Object.values(views).forEach((view) => view.classList.remove('active'));
-  document.querySelector('[data-view="crime-scene"]').classList.add('active');
-  views['crime-scene'].classList.add('active');
+  switchToCrimeSceneView();
   openCharacterSelectModal();
 });
 openCharacterBtn.addEventListener('click', () => {
@@ -1044,6 +1048,13 @@ characterSelectOverlay.addEventListener('click', (event) => {
 
 gameOverlay.addEventListener('click', (event) => {
   if (event.target === gameOverlay) closeGameModal();
+});
+
+document.addEventListener('fullscreenchange', () => {
+  if (!document.fullscreenElement && !gameOverlay.classList.contains('hidden')) {
+    closeGameModal();
+    switchToCrimeSceneView();
+  }
 });
 
 confirmCharacterBtn.addEventListener('click', async () => {
@@ -1156,10 +1167,10 @@ gameChatForm.addEventListener('submit', async (event) => {
     createdAt: Date.now(),
   });
 
-  const latestMessagesSnapshot = await get(query(chatNode, orderByChild('createdAt'), limitToLast(16)));
+  const latestMessagesSnapshot = await get(query(chatNode, orderByChild('createdAt'), limitToLast(11)));
   if (latestMessagesSnapshot.exists()) {
     const entries = Object.entries(latestMessagesSnapshot.val());
-    if (entries.length > 15) {
+    if (entries.length > 10) {
       const [oldestMessageKey] = entries[0];
       await remove(ref(database, `${sectionPath}/${oldestMessageKey}`));
     }
