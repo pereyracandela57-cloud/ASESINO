@@ -343,13 +343,12 @@ async function ensureGameRole() {
   if (!gameState?.killerUid || !gameState?.detectiveUid) {
     const participants = state.currentGroup?.participants || [];
     const realMembers = participants.filter((member) => !member.fake);
-    const killerPool = participants.length ? participants : realMembers;
+    if (!realMembers.length) return;
+
+    const detectiveUid = realMembers[Math.floor(Math.random() * realMembers.length)].uid;
+    const killerPool = participants.filter((member) => member.uid !== detectiveUid);
     const randomIndex = Math.floor(Math.random() * killerPool.length);
-    const killerUid = killerPool[randomIndex]?.uid || state.user.uid;
-    const detectiveCandidates = realMembers.filter((member) => member.uid !== killerUid);
-    const detectiveUid = detectiveCandidates.length
-      ? detectiveCandidates[Math.floor(Math.random() * detectiveCandidates.length)].uid
-      : (realMembers[0]?.uid || state.user.uid);
+    const killerUid = killerPool[randomIndex]?.uid || participants[0]?.uid || state.user.uid;
 
     gameState = {
       killerUid,
