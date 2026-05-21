@@ -39,7 +39,7 @@ const auth = getAuth(app);
 const provider = new GoogleAuthProvider();
 const charactersRef = ref(database, 'characters');
 const presenceRef = ref(database, 'presence');
-const REQUIRED_PARTICIPANTS = 10;
+const REQUIRED_BOTS = 10;
 const BOT_NAMES = [
   'BOB',
   'HERMANO DE BOB',
@@ -959,16 +959,19 @@ async function setupPresence() {
 }
 
 function normalizeGroupMembers(rawMembers = []) {
-  const realMembers = rawMembers.filter(Boolean);
-  if (realMembers.length >= REQUIRED_PARTICIPANTS) return realMembers;
+  const realMembers = rawMembers.filter((member) => member && !member.fake);
+  const existingFakeMembers = rawMembers.filter((member) => member?.fake);
 
-  const missingCount = REQUIRED_PARTICIPANTS - realMembers.length;
-  const fakeMembers = Array.from({ length: missingCount }, (_, index) => ({
-    uid: `fake-${index + 1}`,
-    name: `Usuario ${index + 1}`,
-    botCharacterName: BOT_NAMES[index] || `BOT ${index + 1}`,
-    fake: true,
-  }));
+  const fakeMembers = Array.from({ length: REQUIRED_BOTS }, (_, index) => {
+    const existingFake = existingFakeMembers.find((member) => member.uid === `fake-${index + 1}`);
+    return {
+      uid: `fake-${index + 1}`,
+      name: existingFake?.name || `Usuario ${index + 1}`,
+      botCharacterName: BOT_NAMES[index] || `BOT ${index + 1}`,
+      fake: true,
+      characterId: existingFake?.characterId || null,
+    };
+  });
 
   return [...realMembers, ...fakeMembers];
 }
