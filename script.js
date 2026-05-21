@@ -59,6 +59,9 @@ const emptyMsg = document.getElementById('empty-msg');
 const imageSource = document.getElementById('imageSource');
 const imageFileField = document.getElementById('imageFileField');
 const imageUrlField = document.getElementById('imageUrlField');
+const characterDetailOverlay = document.getElementById('character-detail-overlay');
+const characterDetailContent = document.getElementById('character-detail-content');
+const closeCharacterDetailBtn = document.getElementById('close-character-detail-btn');
 const googleLoginBtn = document.getElementById('google-login-btn');
 const logoutBtn = document.getElementById('logout-btn');
 const authStatus = document.getElementById('auth-status');
@@ -510,6 +513,30 @@ function closeModal() {
   modalOverlay.classList.add('hidden');
 }
 
+function openCharacterDetail(character) {
+  characterDetailContent.innerHTML = `
+    <img src="${character.image}" alt="${character.nombre}" />
+    <h4>${character.nombre}</h4>
+    <p class="meta"><strong>Autor:</strong> ${character.createdByName || 'N/D'}</p>
+    <p class="meta"><strong>Historia:</strong> ${character.historia}</p>
+    <p class="meta"><strong>Género:</strong> ${character.genero}</p>
+    <p class="meta"><strong>Estatura:</strong> ${character.estatura}</p>
+    <p class="meta"><strong>Cabello:</strong> ${character.cabello}</p>
+    <p class="meta"><strong>Ojos:</strong> ${character.ojos}</p>
+    <p class="meta"><strong>Tez:</strong> ${character.tez}</p>
+    <p class="meta"><strong>Rasgos:</strong> ${character.rasgos}</p>
+    <p class="meta"><strong>Traumas/Fijaciones:</strong> ${character.traumas}</p>
+    <p class="meta"><strong>Miedo oculto:</strong> ${character.miedo}</p>
+    ${character.dialogo ? `<p class="meta"><strong>Postmorten:</strong> ${character.dialogo}</p>` : ''}
+    <p class="meta"><strong>Modo de edición:</strong> para editar este personaje usa click derecho sobre su tarjeta y luego "Editar".</p>
+  `;
+  characterDetailOverlay.classList.remove('hidden');
+}
+
+function closeCharacterDetail() {
+  characterDetailOverlay.classList.add('hidden');
+}
+
 function hideGalleryContextMenu() {
   galleryContextMenu.classList.add('hidden');
   state.contextCharacterId = null;
@@ -828,18 +855,11 @@ function renderGallery() {
       <img src="${character.image}" alt="${character.nombre}" />
       <div class="card-content">
         <h3>${character.nombre}</h3>
-        <p class="meta"><strong>Autor:</strong> ${character.createdByName || 'N/D'}</p>
-        <p class="meta"><strong>Género:</strong> ${character.genero}</p>
-        <p class="meta"><strong>Estatura:</strong> ${character.estatura}</p>
-        <p class="meta"><strong>Cabello:</strong> ${character.cabello} | <strong>Ojos:</strong> ${character.ojos}</p>
-        <p class="meta"><strong>Tez:</strong> ${character.tez}</p>
-        <p class="meta"><strong>Historia:</strong> ${character.historia}</p>
-        <p class="meta"><strong>Rasgos:</strong> ${character.rasgos}</p>
-        <p class="meta"><strong>Traumas/Fijaciones:</strong> ${character.traumas}</p>
-        <p class="meta"><strong>Miedo Oculto:</strong> ${character.miedo}</p>
-        ${character.dialogo ? `<p class="meta"><strong>Postmorten:</strong> ${character.dialogo}</p>` : ''}
       </div>
     `;
+    card.addEventListener('click', () => {
+      openCharacterDetail(character);
+    });
     card.addEventListener('contextmenu', (event) => {
       event.preventDefault();
       if (!state.user) {
@@ -933,6 +953,12 @@ openCharacterBtn.addEventListener('click', () => {
   openCharacterSelectModal({ allowDuringActiveGame: true });
 });
 closeCharacterSelectBtn.addEventListener('click', closeCharacterSelectModal);
+closeCharacterDetailBtn.addEventListener('click', closeCharacterDetail);
+characterDetailOverlay.addEventListener('click', (event) => {
+  if (event.target === characterDetailOverlay) {
+    closeCharacterDetail();
+  }
+});
 contextEditBtn.addEventListener('click', () => {
   if (!state.contextCharacterId) return;
   const characterId = state.contextCharacterId;
@@ -964,6 +990,7 @@ document.addEventListener('keydown', (event) => {
   if (event.key === 'Escape') {
     hideGalleryContextMenu();
     hideCrimeContextMenu();
+    closeCharacterDetail();
   }
 });
 
