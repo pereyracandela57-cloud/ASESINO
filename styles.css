@@ -355,3 +355,18 @@ textarea { min-height: 92px; resize: vertical; }
 }
 
 .crime-scene-layout { margin-top:16px; display:grid; grid-template-columns: 320px 1fr; gap:14px; }
+
+.crime-scene-header {
+  flex-wrap: wrap;
+}
+
+.crime-scene-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.crime-scene-tabs .secondary {
+  letter-spacing: 0.02em;
+  font-size: 0.82rem;
+}
