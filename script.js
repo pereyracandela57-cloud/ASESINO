@@ -406,11 +406,6 @@ function renderPlayerProfile() {
     normalizeGroupMembers(state.currentGroup?.participants || []),
   );
   const myCharacter = getMyCharacter();
-  const roleLabel = state.gameRole ? state.gameRole.charAt(0).toUpperCase() + state.gameRole.slice(1) : 'Sin rol';
-  const roleThemeClass = state.gameRole === 'asesino'
-    ? 'role-badge-asesino'
-    : (state.gameRole === 'detective' ? 'role-badge-detective' : 'role-badge-civil');
-  const roleIcon = state.gameRole === 'asesino' ? '🩸' : (state.gameRole === 'detective' ? '👮' : '👤');
 
   const miniCards = participantsInSection.map((participant) => {
     const participantCharacter = state.characters.find((item) => item.id === participant.characterId);
@@ -433,13 +428,7 @@ function renderPlayerProfile() {
   const myNameLabel = myCharacter?.nombre || state.user?.displayName || state.user?.email || 'Sin personaje';
 
   playerProfile.innerHTML = `
-    <div class="player-role-headline">
-      <h4 class="player-role-name">${myNameLabel}</h4>
-      <div class="player-role-badge ${roleThemeClass}">
-        <span class="player-role-icon">${roleIcon}</span>
-        <span class="player-role-text">${roleLabel}</span>
-      </div>
-    </div>
+    <h4 class="player-role-name">${myNameLabel}</h4>
     <p class="meta"><strong>En tu sección (${sectionLabel}):</strong> ${participantsInSection.length} jugador(es)/bot(s)</p>
     <div class="section-player-mini-grid">${miniCards || '<p class="meta">No hay participantes en esta sección.</p>'}</div>
   `;
