@@ -39,18 +39,7 @@ const auth = getAuth(app);
 const provider = new GoogleAuthProvider();
 const charactersRef = ref(database, 'characters');
 const presenceRef = ref(database, 'presence');
-const REQUIRED_PARTICIPANTS = 10;
-
-const BOT_MOVE_INTERVAL_MS = 15000;
-const DEFAULT_SECTION = 'centro-arriba';
-const CRIME_SECTIONS = [
-  'noroeste',
-  'centro-arriba',
-  'noreste',
-  'suroeste',
-  'centro-abajo',
-  'sureste',
-];
+const REQUIRED_BOTS = 10;
 const BOT_NAMES = [
   'BOB',
   'HERMANO DE BOB',
@@ -345,13 +334,15 @@ async function ensureGameRole() {
   let gameState = snapshot.val();
 
   if (!gameState?.killerUid || !gameState?.detectiveUid) {
-    const members = getRealGroupMembers();
-    const randomIndex = Math.floor(Math.random() * members.length);
-    const killerUid = members[randomIndex]?.uid || state.user.uid;
-    const detectiveCandidates = members.filter((member) => member.uid !== killerUid);
+    const participants = state.currentGroup?.participants || [];
+    const realMembers = participants.filter((member) => !member.fake);
+    const killerPool = participants.length ? participants : realMembers;
+    const randomIndex = Math.floor(Math.random() * killerPool.length);
+    const killerUid = killerPool[randomIndex]?.uid || state.user.uid;
+    const detectiveCandidates = realMembers.filter((member) => member.uid !== killerUid);
     const detectiveUid = detectiveCandidates.length
       ? detectiveCandidates[Math.floor(Math.random() * detectiveCandidates.length)].uid
-      : killerUid;
+      : (realMembers[0]?.uid || state.user.uid);
 
     gameState = {
       killerUid,
@@ -887,6 +878,41 @@ async function voteNextPhase() {
   });
 }
 
+async function maybeRunBotKillerTurn() {
+  if (!state.currentGroup?.id) return;
+  const participants = state.currentGroup?.participants || [];
+  const killer = participants.find((member) => member.uid === state.gameState?.killerUid);
+  if (!killer?.fake) return;
+  if (state.gameState?.status !== 'active') return;
+  if ((state.gameState?.currentPhase || 1) !== 1) return;
+  if (state.gameState?.botKillResolvedAt) return;
+
+  const gameRef = ref(database, `games/${state.currentGroup.id}`);
+  const snapshot = await get(gameRef);
+  const latestGame = snapshot.val() || {};
+  if ((latestGame.currentPhase || 1) !== 1 || latestGame.botKillResolvedAt) return;
+
+  const latestParticipants = state.currentGroup?.participants || [];
+  const killedUids = latestGame.killedUids || {};
+  const aliveTargets = latestParticipants
+    .filter((member) => member.uid !== latestGame.killerUid)
+    .filter((member) => !killedUids[member.uid]);
+  const randomTarget = aliveTargets[Math.floor(Math.random() * aliveTargets.length)];
+  if (!randomTarget?.uid) return;
+
+  await set(gameRef, {
+    ...latestGame,
+    status: latestGame.status || 'active',
+    killedUids: {
+      ...killedUids,
+      [randomTarget.uid]: Date.now(),
+    },
+    lastKillAt: Date.now(),
+    lastKillBy: latestGame.killerUid,
+    botKillResolvedAt: Date.now(),
+  });
+}
+
 function updateAuthUI() {
   const isLoggedIn = Boolean(state.user);
   addCharacterBtn.disabled = !isLoggedIn;
@@ -1020,17 +1046,19 @@ async function setupPresence() {
 }
 
 function normalizeGroupMembers(rawMembers = []) {
-  const realMembers = rawMembers.filter(Boolean);
-  if (realMembers.length >= REQUIRED_PARTICIPANTS) return realMembers;
+  const realMembers = rawMembers.filter((member) => member && !member.fake);
+  const existingFakeMembers = rawMembers.filter((member) => member?.fake);
 
-  const missingCount = REQUIRED_PARTICIPANTS - realMembers.length;
-  const fakeMembers = Array.from({ length: missingCount }, (_, index) => ({
-    uid: `fake-${index + 1}`,
-    name: `Usuario ${index + 1}`,
-    botCharacterName: BOT_NAMES[index] || `BOT ${index + 1}`,
-    fake: true,
-    section: DEFAULT_SECTION,
-  }));
+  const fakeMembers = Array.from({ length: REQUIRED_BOTS }, (_, index) => {
+    const existingFake = existingFakeMembers.find((member) => member.uid === `fake-${index + 1}`);
+    return {
+      uid: `fake-${index + 1}`,
+      name: existingFake?.name || `Usuario ${index + 1}`,
+      botCharacterName: BOT_NAMES[index] || `BOT ${index + 1}`,
+      fake: true,
+      characterId: existingFake?.characterId || null,
+    };
+  });
 
   return [...realMembers, ...fakeMembers];
 }
@@ -1368,6 +1396,9 @@ onAuthStateChanged(auth, async (user) => {
       renderPhasesPanel();
       showDawnOverlayIfNeeded();
       showExecutionOverlayIfNeeded();
+      maybeRunBotKillerTurn().catch((error) => {
+        console.error('No se pudo ejecutar el turno automático del bot asesino:', error);
+      });
     });
   } else {
     if (state.groupUnsubscribe) {
