@@ -17,24 +17,17 @@
           <button id="logout-btn" class="secondary auth-btn hidden">Cerrar sesión</button>
         </section>
         <nav>
-          <button class="menu-btn active" data-view="creation">Creación de Personajes</button>
-          <button class="menu-btn" data-view="gallery">Galería de Personajes</button>
+          <button class="menu-btn active" data-view="gallery">Galería de Personajes</button>
           <button class="menu-btn" data-view="suspects">Sospechosos</button>
           <button class="menu-btn" data-view="crime-scene">Escena del crimen</button>
         </nav>
       </aside>
 
       <main class="content">
-        <section id="creation-view" class="view active">
-          <header class="view-header">
-            <h2>Creación de Personajes</h2>
-            <button id="add-character-btn" class="knife-btn">🔪 Agregar Psicópata</button>
-          </header>
-        </section>
-
-        <section id="gallery-view" class="view">
+        <section id="gallery-view" class="view active">
           <header class="view-header">
             <h2>Galería de Personajes</h2>
+            <button id="add-character-btn" class="knife-btn">🔪 Agregar Psicópata</button>
           </header>
           <div id="gallery-grid" class="gallery-grid"></div>
           <p id="empty-msg" class="empty-msg">No hay personajes registrados todavía.</p>
