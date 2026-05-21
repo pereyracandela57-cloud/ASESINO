@@ -111,7 +111,8 @@ const galleryContextMenu = document.getElementById('gallery-context-menu');
 const contextEditBtn = document.getElementById('context-edit-btn');
 const contextDeleteBtn = document.getElementById('context-delete-btn');
 const crimeContextMenu = document.getElementById('crime-context-menu');
-const crimeKillBtn = document.getElementById('crime-kill-btn');
+const crimeActionBtn = document.getElementById('crime-action-btn');
+const crimeCancelBtn = document.getElementById('crime-cancel-btn');
 const crimeCharactersPanel = document.getElementById('crime-characters-panel');
 const crimeCharactersDetailPanel = document.getElementById('crime-characters-detail-panel');
 const crimePhasesPanel = document.getElementById('crime-phases-panel');
@@ -1023,6 +1024,7 @@ function hideGalleryContextMenu() {
 
 function hideCrimeContextMenu() {
   crimeContextMenu.classList.add('hidden');
+  delete crimeContextMenu.dataset.action;
   state.contextCrimeTargetUid = null;
 }
 
@@ -1153,19 +1155,32 @@ function renderCrimeScenePlayers() {
 
     btn.addEventListener('contextmenu', (event) => {
       event.preventDefault();
-      const canKill = canCurrentUserKill(participant);
-      if (!canKill) {
+      const contextAction = getCrimeContextActionForParticipant(participant);
+      if (!contextAction) {
         hideCrimeContextMenu();
         return;
       }
 
       state.contextCrimeTargetUid = participant.uid;
+      crimeContextMenu.dataset.action = contextAction;
+      if (crimeActionBtn) {
+        crimeActionBtn.textContent = contextAction === 'kill' ? 'ASESINAR' : 'ACUSAR';
+      }
       crimeContextMenu.style.left = `${event.pageX}px`;
       crimeContextMenu.style.top = `${event.pageY}px`;
       crimeContextMenu.classList.remove('hidden');
     });
     scenePlayersList.appendChild(btn);
   });
+}
+
+
+function getCrimeContextActionForParticipant(participant) {
+  const canKill = canCurrentUserKill(participant);
+  if (canKill) return 'kill';
+  const canAccuse = canCurrentUserAccuse(participant);
+  if (canAccuse) return 'accuse';
+  return null;
 }
 
 function syncCurrentGroupFromPresence() {
@@ -1518,16 +1533,30 @@ document.addEventListener('keydown', (event) => {
   }
 });
 
-crimeKillBtn.addEventListener('click', async () => {
+crimeActionBtn?.addEventListener('click', async () => {
   if (!state.contextCrimeTargetUid) return;
   const targetUid = state.contextCrimeTargetUid;
+  const action = crimeContextMenu?.dataset.action;
   hideCrimeContextMenu();
   try {
-    await killParticipant(targetUid);
+    if (action === 'accuse') {
+      await accuseParticipant(targetUid);
+    } else {
+      await killParticipant(targetUid);
+    }
   } catch (error) {
+    if (action === 'accuse') {
+      console.error('No se pudo acusar al participante:', error);
+      alert('No se pudo completar la acusación. Intenta de nuevo.');
+      return;
+    }
     console.error('No se pudo asesinar al participante:', error);
     alert('No se pudo completar el asesinato. Intenta de nuevo.');
   }
+});
+
+crimeCancelBtn?.addEventListener('click', () => {
+  hideCrimeContextMenu();
 });
 closeGameBtn.addEventListener('click', closeGameModal);
 crimeRoomGrid.addEventListener('click', async (event) => {
