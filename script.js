@@ -267,11 +267,18 @@ async function ensureGameRole() {
   const snapshot = await get(gameStateRef);
   let gameState = snapshot.val();
 
-  if (!gameState?.killerUid) {
+  if (!gameState?.killerUid || !gameState?.detectiveUid) {
     const members = getRealGroupMembers();
     const randomIndex = Math.floor(Math.random() * members.length);
+    const killerUid = members[randomIndex]?.uid || state.user.uid;
+    const detectiveCandidates = members.filter((member) => member.uid !== killerUid);
+    const detectiveUid = detectiveCandidates.length
+      ? detectiveCandidates[Math.floor(Math.random() * detectiveCandidates.length)].uid
+      : killerUid;
+
     gameState = {
-      killerUid: members[randomIndex]?.uid || state.user.uid,
+      killerUid,
+      detectiveUid,
       createdAt: Date.now(),
       status: 'active',
       currentPhase: 1,
@@ -281,7 +288,9 @@ async function ensureGameRole() {
   }
 
   state.gameState = gameState;
-  state.gameRole = gameState.killerUid === state.user.uid ? 'asesino' : 'civil';
+  state.gameRole = gameState.killerUid === state.user.uid
+    ? 'asesino'
+    : (gameState.detectiveUid === state.user.uid ? 'detective' : 'civil');
   updatePlayButtons();
 }
 
@@ -289,14 +298,18 @@ function renderPlayerProfile() {
   const character = getMyCharacter();
   const image = character?.image || 'https://via.placeholder.com/320x320?text=Sin+foto';
   const name = character?.nombre || state.user?.displayName || 'Jugador';
-  const roleLabel = state.gameRole === 'asesino' ? 'ASESINO' : 'CIVIL';
+  const roleLabel = state.gameRole === 'asesino'
+    ? 'ASESINO'
+    : (state.gameRole === 'detective' ? 'DETECTIVE' : 'CIVIL');
   const isDead = isParticipantDead(state.user?.uid);
   const bloodBadge = state.gameRole === 'asesino' ? '<span class="blood-drop" title="Asesino">🩸</span>' : '';
+  const detectiveBadge = state.gameRole === 'detective' ? '<span class="blood-drop" title="Detective">👮</span>' : '';
 
   playerProfile.innerHTML = `
     <div class="profile-image-wrap">
       <img src="${image}" alt="${name}" class="profile-image" />
       ${bloodBadge}
+      ${detectiveBadge}
     </div>
     <h4>${name}</h4>
     <p class="meta"><strong>Personaje elegido:</strong> ${character?.nombre || 'Sin asignar'}</p>
@@ -388,14 +401,21 @@ async function killParticipant(targetUid) {
 
   if (killedUids[targetUid]) return;
 
+  const targetIsDetective = latestGame.detectiveUid === targetUid;
   await set(gameRef, {
     ...latestGame,
-    status: latestGame.status || 'active',
+    status: targetIsDetective ? 'finished' : (latestGame.status || 'active'),
+    winner: targetIsDetective ? 'detective' : (latestGame.winner || null),
+    endedAt: targetIsDetective ? Date.now() : (latestGame.endedAt || null),
     killedUids: {
       ...killedUids,
       [targetUid]: Date.now(),
     },
   });
+
+  if (targetIsDetective) {
+    alert('Intentaste asesinar al detective. ¡Perdiste la partida!');
+  }
 }
 function renderCharacterOptions() {
   characterOptions.innerHTML = '';
@@ -1078,6 +1098,9 @@ onAuthStateChanged(auth, async (user) => {
       const games = snapshot.val() || {};
       const groupId = state.currentGroup?.id;
       state.gameState = groupId ? games[groupId] || null : null;
+      state.gameRole = state.gameState?.killerUid === state.user?.uid
+        ? 'asesino'
+        : (state.gameState?.detectiveUid === state.user?.uid ? 'detective' : 'civil');
       const amIDead = isParticipantDead(state.user?.uid);
       if (amIDead && !state.deathAlertShown) {
         state.deathAlertShown = true;
