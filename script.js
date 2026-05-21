@@ -940,7 +940,13 @@ async function maybeRunBotKillerTurn() {
   const aliveTargets = latestParticipants
     .filter((member) => member.uid !== latestGame.killerUid)
     .filter((member) => !killedUids[member.uid]);
-  const randomTarget = aliveTargets[Math.floor(Math.random() * aliveTargets.length)];
+
+  const previousPhaseOneVictimUid = latestGame.lastPhaseOneVictimUid;
+  const candidates = aliveTargets.length > 1 && previousPhaseOneVictimUid
+    ? aliveTargets.filter((member) => member.uid !== previousPhaseOneVictimUid)
+    : aliveTargets;
+
+  const randomTarget = candidates[Math.floor(Math.random() * candidates.length)];
   if (!randomTarget?.uid) return;
 
   await set(gameRef, {
@@ -952,6 +958,7 @@ async function maybeRunBotKillerTurn() {
     },
     lastKillAt: Date.now(),
     lastKillBy: latestGame.killerUid,
+    lastPhaseOneVictimUid: randomTarget.uid,
     botKillResolvedFor: phaseKey,
   });
 }
