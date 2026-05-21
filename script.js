@@ -1238,12 +1238,19 @@ function renderCrimeScenePlayers() {
       state.selectedCrimeParticipantUid = participant.uid;
       const botDescription = BOT_DESCRIPTIONS[participant.botCharacterName] || 'Este jugador aún no eligió personaje.';
       const selectedParticipantRole = getParticipantRoleLabel(participant.uid);
-      const roleLabel = selectedParticipantRole && participant.uid === state.user?.uid
-        ? `<p class="meta"><strong>Tu rol:</strong> ${selectedParticipantRole}</p>`
+      const isCurrentUserParticipant = participant.uid === state.user?.uid;
+      const roleTone = selectedParticipantRole === 'Asesino' ? 'killer' : (selectedParticipantRole === 'Detective' ? 'detective' : 'civil');
+      const roleEmoji = selectedParticipantRole === 'Asesino' ? '🩸' : (selectedParticipantRole === 'Detective' ? '👮' : '🕵️');
+      const roleBadge = selectedParticipantRole && isCurrentUserParticipant
+        ? `<span class="role-chip role-chip-${roleTone}">${roleEmoji} ${selectedParticipantRole}</span>`
         : '';
+      const roleLabel = selectedParticipantRole && isCurrentUserParticipant
+        ? `<div class="scene-role-banner scene-role-banner-${roleTone}"><span class="scene-role-banner-title">TU ROL</span><strong>${roleEmoji} ${selectedParticipantRole}</strong></div>`
+        : '';
+      const detailHeader = `<div class="scene-character-header"><h4>${character?.nombre || characterName}</h4>${roleBadge}</div>`;
       const detailContent = character
-        ? `<h4>${character.nombre}</h4><p class="meta"><strong>Historia:</strong> ${character.historia}</p><p class="meta"><strong>Rasgos:</strong> ${character.rasgos}</p><p class="meta"><strong>Traumas:</strong> ${character.traumas}</p><p class="meta"><strong>Miedo:</strong> ${character.miedo}</p>`
-        : `<h4>${characterName}</h4><p class="meta"><strong>Historia:</strong> ${botDescription}</p>`;
+        ? `${detailHeader}<p class="meta"><strong>Historia:</strong> ${character.historia}</p><p class="meta"><strong>Rasgos:</strong> ${character.rasgos}</p><p class="meta"><strong>Traumas:</strong> ${character.traumas}</p><p class="meta"><strong>Miedo:</strong> ${character.miedo}</p>`
+        : `${detailHeader}<p class="meta"><strong>Historia:</strong> ${botDescription}</p>`;
       sceneCharacterDetail.innerHTML = `${detailContent}${roleLabel}${isParticipantDead(participant.uid) ? '<p class="meta"><strong>Estado:</strong> Eliminado</p>' : ''}`;
 
       const showKill = canCurrentUserSeeKillButton(participant);
