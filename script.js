@@ -120,6 +120,14 @@ const phasesList = document.getElementById('phases-list');
 const phaseProgress = document.getElementById('phase-progress');
 const nextPhaseBtn = document.getElementById('next-phase-btn');
 const cluesList = document.getElementById('clues-list');
+const dawnOverlay = document.getElementById('dawn-overlay');
+const dawnMessage = document.getElementById('dawn-message');
+const closeDawnBtn = document.getElementById('close-dawn-btn');
+const dawnNextPhaseBtn = document.getElementById('dawn-next-phase-btn');
+
+const CRIME_SECTIONS = Array.from(crimeRoomCells).map((cell) => cell.dataset.section).filter(Boolean);
+const DEFAULT_SECTION = CRIME_SECTIONS[0] || 'noroeste';
+const BOT_MOVE_INTERVAL_MS = 15000;
 const DAY_PHASES = [
   'Noche',
   'Amanecer',
