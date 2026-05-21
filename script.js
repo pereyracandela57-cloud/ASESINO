@@ -118,6 +118,10 @@ const crimePhasesPanel = document.getElementById('crime-phases-panel');
 const phasesList = document.getElementById('phases-list');
 const phaseProgress = document.getElementById('phase-progress');
 const nextPhaseBtn = document.getElementById('next-phase-btn');
+const dawnOverlay = document.getElementById('dawn-overlay');
+const dawnMessage = document.getElementById('dawn-message');
+const dawnNextPhaseBtn = document.getElementById('dawn-next-phase-btn');
+const closeDawnBtn = document.getElementById('close-dawn-btn');
 const DAY_PHASES = ['Noche', 'Amanecer', 'Medio día', 'Atardecer'];
 
 const state = {
@@ -140,6 +144,7 @@ const state = {
   persistedGroupParticipants: [],
   groupUnsubscribe: null,
   deathAlertShown: false,
+  dawnAlertShownForPhase: null,
 };
 
 function getRealGroupMembers() {
@@ -546,6 +551,36 @@ function renderPhasesPanel() {
   phaseProgress.textContent = `Votos para avanzar: ${votesCount}/${realPlayerUids.length || 0}`;
   nextPhaseBtn.disabled = !state.user || state.gameState?.status !== 'active' || alreadyVoted || dead;
   nextPhaseBtn.textContent = dead ? 'HAS SIDO ASESINADO' : (alreadyVoted ? 'VOTO REGISTRADO' : 'SIGUIENTE FASE');
+  if (dawnNextPhaseBtn) {
+    dawnNextPhaseBtn.disabled = nextPhaseBtn.disabled;
+    dawnNextPhaseBtn.textContent = alreadyVoted ? 'VOTO REGISTRADO' : 'Pasar a la siguiente Fase';
+  }
+}
+
+function getLastKilledCharacterName() {
+  const killedEntries = Object.entries(getKilledUids());
+  if (!killedEntries.length) return null;
+  const [lastKilledUid] = killedEntries.sort((a, b) => (a[1] || 0) - (b[1] || 0)).at(-1);
+  const participant = (state.currentGroup?.participants || []).find((member) => member.uid === lastKilledUid);
+  const character = state.characters.find((item) => item.id === participant?.characterId);
+  return character?.nombre || participant?.name || 'UN PERSONAJE';
+}
+
+function showDawnOverlayIfNeeded() {
+  if (!dawnOverlay || !state.user || state.gameState?.status !== 'active') return;
+  const currentPhase = state.gameState?.currentPhase || 1;
+  if (currentPhase !== 2) return;
+  const phaseStamp = `${state.currentGroup?.id || 'no-group'}-${currentPhase}-${state.gameState?.phaseUpdatedAt || 0}`;
+  if (state.dawnAlertShownForPhase === phaseStamp) return;
+
+  const killedName = getLastKilledCharacterName() || 'UN PERSONAJE';
+  dawnMessage.textContent = `${killedName.toUpperCase()} HA SIDO ASESINADO DURANTE LA NOCHE`;
+  dawnOverlay.classList.remove('hidden');
+  state.dawnAlertShownForPhase = phaseStamp;
+}
+
+function closeDawnOverlay() {
+  dawnOverlay?.classList.add('hidden');
 }
 
 function openCrimeScenePhasesTab() {
@@ -1043,6 +1078,7 @@ onAuthStateChanged(auth, async (user) => {
       renderCrimeScenePlayers();
       renderPlayerProfile();
       renderPhasesPanel();
+      showDawnOverlayIfNeeded();
     });
   } else {
     if (state.groupUnsubscribe) {
@@ -1297,4 +1333,19 @@ nextPhaseBtn?.addEventListener('click', async () => {
     console.error('No se pudo avanzar de fase:', error);
     alert('No se pudo registrar el voto para avanzar de fase.');
   }
+});
+
+dawnNextPhaseBtn?.addEventListener('click', async () => {
+  try {
+    await voteNextPhase();
+    closeDawnOverlay();
+  } catch (error) {
+    console.error('No se pudo avanzar de fase desde amanecer:', error);
+    alert('No se pudo registrar el voto para avanzar de fase.');
+  }
+});
+
+closeDawnBtn?.addEventListener('click', closeDawnOverlay);
+dawnOverlay?.addEventListener('click', (event) => {
+  if (event.target === dawnOverlay) closeDawnOverlay();
 });

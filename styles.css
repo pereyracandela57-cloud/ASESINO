@@ -77,6 +77,18 @@ body {
   padding: 18px;
   box-shadow: inset 0 4px 12px rgba(255,255,255,0.04), 0 14px 26px rgba(0,0,0,0.6);
 }
+
+.dawn-panel {
+  width: min(700px, 100%);
+  text-align: center;
+}
+
+.dawn-message {
+  font-size: 1.3rem;
+  font-weight: 700;
+  color: #ffd0d0;
+  margin: 20px 0;
+}
 .modal-header {
   display: flex;
   align-items: center;
