@@ -85,14 +85,20 @@
           </header>
           <p class="meta">Primero elige personaje. Luego entrarás al chat con tu rol oculto.</p>
           <div class="crime-scene-layout">
-            <aside class="suspects-panel">
+            <aside id="crime-characters-panel" class="suspects-panel">
               <h3>Personajes jugando</h3>
               <div id="scene-players-list" class="suspects-list"></div>
             </aside>
-            <section class="suspects-panel">
+            <section id="crime-characters-detail-panel" class="suspects-panel">
               <h3>Detalle del personaje seleccionado</h3>
               <article id="scene-character-detail" class="player-profile"></article>
               <button id="kill-player-btn" type="button" class="primary hidden">Asesinar</button>
+            </section>
+            <section id="crime-phases-panel" class="suspects-panel hidden">
+              <h3>Fases del día</h3>
+              <ol id="phases-list" class="phases-list"></ol>
+              <p id="phase-progress" class="meta"></p>
+              <button id="next-phase-btn" type="button" class="primary">SIGUIENTE FASE</button>
             </section>
           </div>
         </section>

@@ -458,3 +458,15 @@ textarea { min-height: 92px; resize: vertical; }
   outline: 1px solid var(--red-glow);
   box-shadow: 0 0 12px rgba(255,0,0,0.35);
 }
+
+.phases-list {
+  margin: 0 0 10px;
+  padding-left: 20px;
+  display: grid;
+  gap: 8px;
+}
+
+.phases-list li.active {
+  color: #ff8a8a;
+  font-weight: 700;
+}
