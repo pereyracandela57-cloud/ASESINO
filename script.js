@@ -368,10 +368,11 @@ async function ensureGameRole() {
   const gameStateRef = ref(database, `games/${state.currentGroup.id}`);
   const snapshot = await get(gameStateRef);
   let gameState = snapshot.val();
+  const participants = state.currentGroup?.participants || [];
+  const realMembers = participants.filter((member) => !member.fake);
 
-  if (!gameState?.killerUid || !gameState?.detectiveUid) {
-    const participants = state.currentGroup?.participants || [];
-    const realMembers = participants.filter((member) => !member.fake);
+  const detectiveIsRealUser = realMembers.some((member) => member.uid === gameState?.detectiveUid);
+  if (!gameState?.killerUid || !gameState?.detectiveUid || !detectiveIsRealUser) {
     if (!realMembers.length) return;
 
     const detectiveUid = realMembers[Math.floor(Math.random() * realMembers.length)].uid;
@@ -543,6 +544,7 @@ function canCurrentUserSeeKillButton(targetParticipant) {
   if (state.gameRole !== 'asesino') return false;
   if (state.gameState?.status !== 'active') return false;
   if (targetParticipant.uid === state.user?.uid) return false;
+  if (targetParticipant.uid === state.gameState?.detectiveUid) return false;
   if (isParticipantDead(targetParticipant.uid)) return false;
   return true;
 }
@@ -587,6 +589,10 @@ async function killParticipant(targetUid) {
   const snapshot = await get(gameRef);
   const latestGame = snapshot.val() || state.gameState || {};
   const killedUids = latestGame.killedUids || {};
+  if (targetUid === latestGame.detectiveUid) {
+    alert('No puedes asesinar al detective.');
+    return;
+  }
 
   if (killedUids[targetUid]) return;
 
@@ -945,6 +951,7 @@ async function maybeRunBotKillerTurn() {
   const killedUids = latestGame.killedUids || {};
   const aliveTargets = latestParticipants
     .filter((member) => member.uid !== latestGame.killerUid)
+    .filter((member) => member.uid !== latestGame.detectiveUid)
     .filter((member) => !killedUids[member.uid]);
 
   const previousPhaseOneVictimUid = latestGame.lastPhaseOneVictimUid;
@@ -1153,10 +1160,14 @@ function renderCrimeScenePlayers() {
     btn.addEventListener('click', () => {
       state.selectedCrimeParticipantUid = participant.uid;
       const botDescription = BOT_DESCRIPTIONS[participant.botCharacterName] || 'Este jugador aún no eligió personaje.';
+      const selectedParticipantRole = getParticipantRoleLabel(participant.uid);
+      const roleLabel = selectedParticipantRole && participant.uid === state.user?.uid
+        ? `<p class="meta"><strong>Tu rol:</strong> ${selectedParticipantRole}</p>`
+        : '';
       const detailContent = character
         ? `<h4>${character.nombre}</h4><p class="meta"><strong>Historia:</strong> ${character.historia}</p><p class="meta"><strong>Rasgos:</strong> ${character.rasgos}</p><p class="meta"><strong>Traumas:</strong> ${character.traumas}</p><p class="meta"><strong>Miedo:</strong> ${character.miedo}</p>`
         : `<h4>${characterName}</h4><p class="meta"><strong>Historia:</strong> ${botDescription}</p>`;
-      sceneCharacterDetail.innerHTML = `${detailContent}${isParticipantDead(participant.uid) ? '<p class="meta"><strong>Estado:</strong> Eliminado</p>' : ''}`;
+      sceneCharacterDetail.innerHTML = `${detailContent}${roleLabel}${isParticipantDead(participant.uid) ? '<p class="meta"><strong>Estado:</strong> Eliminado</p>' : ''}`;
 
       const showKill = canCurrentUserSeeKillButton(participant);
       killPlayerBtn.classList.toggle('hidden', !showKill);
@@ -1185,6 +1196,13 @@ function renderCrimeScenePlayers() {
     });
     scenePlayersList.appendChild(btn);
   });
+}
+
+function getParticipantRoleLabel(uid) {
+  if (!uid || !state.gameState) return null;
+  if (uid === state.gameState.killerUid) return 'Asesino';
+  if (uid === state.gameState.detectiveUid) return 'Detective';
+  return 'Civil';
 }
 
 
