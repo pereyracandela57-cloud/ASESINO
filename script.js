@@ -379,6 +379,27 @@ function renderPlayerProfile() {
   const isDead = isParticipantDead(state.user?.uid);
   const bloodBadge = state.gameRole === 'asesino' ? '<span class="blood-drop" title="Asesino">🩸</span>' : '';
   const detectiveBadge = state.gameRole === 'detective' ? '<span class="blood-drop" title="Detective">👮</span>' : '';
+  const participantsInSection = getParticipantsInCurrentSection(
+    normalizeGroupMembers(state.currentGroup?.participants || []),
+  );
+
+  const miniCards = participantsInSection.map((participant) => {
+    const participantCharacter = state.characters.find((item) => item.id === participant.characterId);
+    const participantImage = participantCharacter?.image || 'https://via.placeholder.com/64x64?text=?';
+    const participantName = participantCharacter?.nombre || participant.name || 'Jugador';
+    const status = isParticipantDead(participant.uid) ? 'Eliminado' : 'Activo';
+    return `
+      <article class="section-player-mini" title="${participantName}">
+        <img src="${participantImage}" alt="${participantName}" class="section-player-mini-image" />
+        <p class="meta">${participantName}</p>
+        <span class="meta">${status}</span>
+      </article>
+    `;
+  }).join('');
+
+  const sectionLabel = state.currentCrimeSection
+    ? state.currentCrimeSection.replace('-', ' ').toUpperCase()
+    : 'SIN SECCIÓN';
 
   playerProfile.innerHTML = `
     <div class="profile-image-wrap">
@@ -391,6 +412,9 @@ function renderPlayerProfile() {
     <p class="meta"><strong>Rol secreto:</strong> ${roleLabel}</p>
     <p class="meta">Este rol solo lo ves tú.</p>
     ${isDead ? '<p class="meta"><strong>Estado:</strong> Eliminado (solo espectador)</p>' : ''}
+    <hr class="mini-divider" />
+    <p class="meta"><strong>En tu sección (${sectionLabel}):</strong> ${participantsInSection.length} jugador(es)/bot(s)</p>
+    <div class="section-player-mini-grid">${miniCards || '<p class="meta">No hay participantes en esta sección.</p>'}</div>
   `;
 }
 
@@ -1522,6 +1546,7 @@ crimeRoomGrid.addEventListener('click', async (event) => {
 
   renderCrimeSectionSelection();
   renderCrimeScenePlayers();
+  renderPlayerProfile();
   subscribeGameChat();
   updateGameChatAvailability();
 });

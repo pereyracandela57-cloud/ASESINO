@@ -515,3 +515,35 @@ textarea { min-height: 92px; resize: vertical; }
   color: #ff8a8a;
   font-weight: 700;
 }
+
+.mini-divider {
+  border: 0;
+  border-top: 1px solid #4b1717;
+  margin: 12px 0;
+}
+
+.section-player-mini-grid {
+  margin-top: 8px;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(90px, 1fr));
+  gap: 8px;
+}
+
+.section-player-mini {
+  border: 1px solid #5a1d1d;
+  border-radius: 10px;
+  padding: 6px;
+  background: rgba(0, 0, 0, 0.3);
+  display: grid;
+  place-items: center;
+  text-align: center;
+}
+
+.section-player-mini-image {
+  width: 58px;
+  height: 58px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 1px solid #7a1f1f;
+  margin-bottom: 4px;
+}
