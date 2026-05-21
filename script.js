@@ -55,7 +55,6 @@ const BOT_NAMES = [
 
 const menuButtons = document.querySelectorAll('.menu-btn');
 const views = {
-  creation: document.getElementById('creation-view'),
   gallery: document.getElementById('gallery-view'),
   suspects: document.getElementById('suspects-view'),
   'crime-scene': document.getElementById('crime-scene-view'),
