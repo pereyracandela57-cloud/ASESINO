@@ -757,7 +757,8 @@ function normalizeGroupMembers(rawMembers = []) {
   const missingCount = REQUIRED_PARTICIPANTS - realMembers.length;
   const fakeMembers = Array.from({ length: missingCount }, (_, index) => ({
     uid: `fake-${index + 1}`,
-    name: BOT_NAMES[index] || `BOT ${index + 1}`,
+    name: `Usuario ${index + 1}`,
+    botCharacterName: BOT_NAMES[index] || `BOT ${index + 1}`,
     fake: true,
   }));
 
@@ -776,11 +777,12 @@ function renderCrimeScenePlayers() {
 
   participants.forEach((participant) => {
     const character = state.characters.find((item) => item.id === participant.characterId);
+    const characterName = character?.nombre || participant.botCharacterName || 'Sin personaje';
     const deadLabel = isParticipantDead(participant.uid) ? ' · ☠️ Eliminado' : '';
     const btn = document.createElement('button');
     btn.type = 'button';
     btn.className = 'character-option';
-    btn.innerHTML = `<strong>${participant.name}</strong><br><span class="meta">${character?.nombre || 'Sin personaje'}${deadLabel}</span>`;
+    btn.innerHTML = `<strong>${participant.name}</strong><br><span class="meta">${characterName}${deadLabel}</span>`;
     btn.addEventListener('click', () => {
       state.selectedCrimeParticipantUid = participant.uid;
       sceneCharacterDetail.innerHTML = character
@@ -880,7 +882,7 @@ function renderSuspects() {
   const participants = normalizeGroupMembers(state.currentGroup?.participants || []);
   groupCount.textContent = participants.length;
   groupMembers.innerHTML = participants
-    .map((member) => `<li>${member.name}${member.fake ? ' (falso)' : ''}</li>`)
+    .map((member) => `<li>${member.name}${member.fake ? ` · ${member.botCharacterName}` : ''}</li>`)
     .join('');
 }
 
