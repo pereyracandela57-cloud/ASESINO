@@ -118,6 +118,7 @@ const gameOverlay = document.getElementById('game-overlay');
 const closeGameBtn = document.getElementById('close-game-btn');
 const endGameBtn = document.getElementById('end-game-btn');
 const openCrimeSceneBtn = document.getElementById('open-crime-scene-btn');
+const crimeSceneNewGameBtn = document.getElementById('crime-scene-new-game-btn');
 
 const crimeTabCluesBtn = document.getElementById('crime-tab-clues');
 const crimeTabCharactersBtn = document.getElementById('crime-tab-characters');
@@ -581,6 +582,20 @@ function canCurrentUserAccuse(targetParticipant) {
   if (targetParticipant.uid === state.user?.uid) return false;
   if (isParticipantDead(targetParticipant.uid)) return false;
   return true;
+}
+
+
+function shouldShowCrimeSceneNewGameButton() {
+  return state.gameState?.status === 'finished' && state.gameState?.winner === 'detective-civiles';
+}
+
+function updateCrimeSceneEndState() {
+  const showNewGameButton = shouldShowCrimeSceneNewGameButton();
+  crimeSceneNewGameBtn?.classList.toggle('hidden', !showNewGameButton);
+
+  document.querySelector('.crime-scene-layout')?.classList.toggle('hidden', showNewGameButton);
+  document.querySelector('#crime-scene-view .crime-scene-header')?.classList.toggle('hidden', showNewGameButton);
+  document.querySelector('#crime-scene-view > .meta')?.classList.toggle('hidden', showNewGameButton);
 }
 
 function updateGameChatAvailability() {
@@ -1063,6 +1078,7 @@ function updateAuthUI() {
   }
 
   renderSuspects();
+updateCrimeSceneEndState();
   updatePlayButtons();
 }
 
@@ -1561,6 +1577,7 @@ onAuthStateChanged(auth, async (user) => {
       updatePlayButtons();
       updateGameChatAvailability();
       renderCrimeScenePlayers();
+      updateCrimeSceneEndState();
       if (state.gameState?.status === 'active') {
         maybeStartBotMovement();
       } else {
@@ -1809,6 +1826,21 @@ accusePlayerBtn?.addEventListener('click', async () => {
   } catch (error) {
     console.error('No se pudo acusar al participante:', error);
     alert('No se pudo completar la acusación. Intenta de nuevo.');
+  }
+});
+
+
+crimeSceneNewGameBtn?.addEventListener('click', async () => {
+  if (!state.currentGroup?.id) return;
+  try {
+    await cleanupFinishedGame(state.currentGroup.id);
+    state.gameState = null;
+    updatePlayButtons();
+    updateCrimeSceneEndState();
+    openCharacterSelectModal({ allowDuringActiveGame: true });
+  } catch (error) {
+    console.error('No se pudo iniciar una nueva partida:', error);
+    alert('No se pudo iniciar una nueva partida. Intenta nuevamente.');
   }
 });
 
