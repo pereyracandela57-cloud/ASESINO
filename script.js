@@ -53,6 +53,19 @@ const BOT_NAMES = [
   'PAPÁ DE BOB',
 ];
 
+const BOT_DESCRIPTIONS = {
+  BOB: 'Se llama Bob, y bueno su apodo es Bob',
+  'HERMANO DE BOB': 'Es el hermano de Bob. Se parece mucho a Bob',
+  'BOB RUBIO': 'Es Bob pero se tiñó el pelo de Rubio.',
+  'BOB MUJER': 'Es Bob pero se puso un corpiño',
+  'BOB TRANS LESBIANO': 'Es Bob pero se autopercibe mujer aunque le siguen gustando las mujeres',
+  'NOVIA IMAGINARIA DE BOB': 'Bob se imaginó una novia pero aún no sabe cómo nombrarla',
+  'MAMÁ DE BOB': 'Ella siempre tuvo sospechas de que su esposo la engañó y que realmente Bob no era su hijo. Pero aun así se hizo cargo.',
+  'DENTISTA DE BOB': 'No tiene el título de dentista, pero una vez le sacó un diente a Bob atando su diente flojo a una puerta y cerrándola con fuerza',
+  'ABUELA DE BOB': 'Es la mamá de la mamá de Bob.',
+  'PAPÁ DE BOB': 'Le fue infiel a su esposa y tuvo un hijo con otra, pero le hizo creer a su esposa que Bob era su hijo. Hasta el día de hoy lo sigue creyendo.',
+};
+
 const menuButtons = document.querySelectorAll('.menu-btn');
 const views = {
   gallery: document.getElementById('gallery-view'),
@@ -1147,9 +1160,11 @@ function renderCrimeScenePlayers() {
     btn.innerHTML = `<strong>${participant.name}</strong><br><span class="meta">${characterName}${deadLabel}</span><br><span class="meta">Sección: ${sectionLabel}</span>`;
     btn.addEventListener('click', () => {
       state.selectedCrimeParticipantUid = participant.uid;
-      sceneCharacterDetail.innerHTML = character
-        ? `<h4>${character.nombre}</h4><p class="meta"><strong>Historia:</strong> ${character.historia}</p><p class="meta"><strong>Rasgos:</strong> ${character.rasgos}</p><p class="meta"><strong>Traumas:</strong> ${character.traumas}</p><p class="meta"><strong>Miedo:</strong> ${character.miedo}</p>${isParticipantDead(participant.uid) ? '<p class="meta"><strong>Estado:</strong> Eliminado</p>' : ''}`
-        : '<p class="meta">Este jugador aún no eligió personaje.</p>';
+      const botDescription = BOT_DESCRIPTIONS[participant.botCharacterName] || 'Este jugador aún no eligió personaje.';
+      const detailContent = character
+        ? `<h4>${character.nombre}</h4><p class="meta"><strong>Historia:</strong> ${character.historia}</p><p class="meta"><strong>Rasgos:</strong> ${character.rasgos}</p><p class="meta"><strong>Traumas:</strong> ${character.traumas}</p><p class="meta"><strong>Miedo:</strong> ${character.miedo}</p>`
+        : `<h4>${characterName}</h4><p class="meta"><strong>Historia:</strong> ${botDescription}</p>`;
+      sceneCharacterDetail.innerHTML = `${detailContent}${isParticipantDead(participant.uid) ? '<p class="meta"><strong>Estado:</strong> Eliminado</p>' : ''}`;
 
       const showKill = canCurrentUserSeeKillButton(participant);
       killPlayerBtn.classList.toggle('hidden', !showKill);
