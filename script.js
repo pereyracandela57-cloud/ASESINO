@@ -139,6 +139,7 @@ const state = {
   contextCrimeTargetUid: null,
   persistedGroupParticipants: [],
   groupUnsubscribe: null,
+  deathAlertShown: false,
 };
 
 function getRealGroupMembers() {
@@ -345,6 +346,7 @@ function canCurrentUserKill(targetParticipant) {
   if (!targetParticipant || targetParticipant.fake) return false;
   if (state.gameRole !== 'asesino') return false;
   if (state.gameState?.status !== 'active') return false;
+  if ((state.gameState?.currentPhase || 1) !== 1) return false;
   if (targetParticipant.uid === state.user?.uid) return false;
   if (isParticipantDead(targetParticipant.uid)) return false;
   return true;
@@ -535,14 +537,15 @@ function renderPhasesPanel() {
   const phaseVotes = state.gameState?.phaseVotes || {};
   const realPlayerUids = getRealPlayerUids();
   const votesCount = realPlayerUids.filter((uid) => phaseVotes[uid]).length;
+  const dead = isParticipantDead(state.user?.uid);
   const alreadyVoted = Boolean(state.user?.uid && phaseVotes[state.user.uid]);
 
   phasesList.innerHTML = DAY_PHASES.map((name, index) => (
     `<li class="${index + 1 === currentPhase ? 'active' : ''}">Fase ${index + 1}: ${name}</li>`
   )).join('');
   phaseProgress.textContent = `Votos para avanzar: ${votesCount}/${realPlayerUids.length || 0}`;
-  nextPhaseBtn.disabled = !state.user || state.gameState?.status !== 'active' || alreadyVoted;
-  nextPhaseBtn.textContent = alreadyVoted ? 'VOTO REGISTRADO' : 'SIGUIENTE FASE';
+  nextPhaseBtn.disabled = !state.user || state.gameState?.status !== 'active' || alreadyVoted || dead;
+  nextPhaseBtn.textContent = dead ? 'HAS SIDO ASESINADO' : (alreadyVoted ? 'VOTO REGISTRADO' : 'SIGUIENTE FASE');
 }
 
 function openCrimeScenePhasesTab() {
@@ -559,6 +562,7 @@ crimeTabPhasesBtn?.addEventListener('click', openCrimeScenePhasesTab);
 
 async function voteNextPhase() {
   if (!state.currentGroup?.id || !state.user || state.gameState?.status !== 'active') return;
+  if (isParticipantDead(state.user.uid)) return;
   const gameRef = ref(database, `games/${state.currentGroup.id}`);
   const snapshot = await get(gameRef);
   const latestGame = snapshot.val() || state.gameState || {};
@@ -1026,7 +1030,18 @@ onAuthStateChanged(auth, async (user) => {
       const games = snapshot.val() || {};
       const groupId = state.currentGroup?.id;
       state.gameState = groupId ? games[groupId] || null : null;
+      const amIDead = isParticipantDead(state.user?.uid);
+      if (amIDead && !state.deathAlertShown) {
+        state.deathAlertShown = true;
+        alert('HAS SIDO ASESINADO');
+      }
+      if (!amIDead) {
+        state.deathAlertShown = false;
+      }
       updatePlayButtons();
+      updateGameChatAvailability();
+      renderCrimeScenePlayers();
+      renderPlayerProfile();
       renderPhasesPanel();
     });
   } else {
