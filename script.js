@@ -179,6 +179,18 @@ function getTakenCharacterIds() {
 }
 
 
+function isBotCharacter(character) {
+  return BOT_NAMES.includes(character?.nombre);
+}
+
+function getSelectableCharactersForParticipant(participant) {
+  if (participant?.fake) {
+    return state.characters.filter((character) => isBotCharacter(character));
+  }
+  return state.characters.filter((character) => !isBotCharacter(character));
+}
+
+
 function areAllRealPlayersReady(group = state.currentGroup) {
   const realMembers = (group?.participants || []).filter((member) => !member.fake);
   return realMembers.length > 0 && realMembers.every((member) => Boolean(member.characterId));
@@ -523,8 +535,10 @@ async function accuseParticipant(targetUid) {
 function renderCharacterOptions() {
   characterOptions.innerHTML = '';
   const takenIds = new Set(getTakenCharacterIds());
+  const myParticipant = (state.currentGroup?.participants || []).find((member) => member.uid === state.user?.uid);
+  const availableCharacters = getSelectableCharactersForParticipant(myParticipant);
 
-  state.characters.forEach((character) => {
+  availableCharacters.forEach((character) => {
     const isTaken = takenIds.has(character.id);
     const button = document.createElement('button');
     button.type = 'button';
@@ -573,6 +587,12 @@ function renderCharacterPreview(character) {
 async function saveSelectedCharacterToGroup() {
   if (!state.user || !state.selectedCharacterId || !state.currentGroup?.id) return;
 
+  const myParticipant = (state.currentGroup?.participants || []).find((member) => member.uid === state.user.uid);
+  const allowedCharacterIds = new Set(getSelectableCharactersForParticipant(myParticipant).map((character) => character.id));
+  if (!allowedCharacterIds.has(state.selectedCharacterId)) {
+    throw new Error('CHARACTER_NOT_ALLOWED_FOR_PLAYER');
+  }
+
   const groupRef = ref(database, `groups/${state.currentGroup.id}`);
   const groupSnapshot = await get(groupRef);
   const latestGroup = groupSnapshot.val() || state.currentGroup;
@@ -597,7 +617,7 @@ async function saveSelectedCharacterToGroup() {
   if (areAllRealPlayersReady({ participants })) {
     participants = participants.map((member) => {
       if (member.fake && !member.characterId) {
-        const freeCharacter = state.characters.find((character) => !usedCharacterIds.has(character.id));
+        const freeCharacter = state.characters.find((character) => isBotCharacter(character) && !usedCharacterIds.has(character.id));
         if (freeCharacter) {
           usedCharacterIds.add(freeCharacter.id);
           return { ...member, characterId: freeCharacter.id };
