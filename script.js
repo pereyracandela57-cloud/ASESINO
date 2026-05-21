@@ -128,7 +128,7 @@ const dawnNextPhaseBtn = document.getElementById('dawn-next-phase-btn');
 const CRIME_SECTIONS = Array.from(crimeRoomCells).map((cell) => cell.dataset.section).filter(Boolean);
 const LIVING_ROOM_SECTION = 'centro-arriba';
 const DEFAULT_SECTION = CRIME_SECTIONS.includes(LIVING_ROOM_SECTION) ? LIVING_ROOM_SECTION : (CRIME_SECTIONS[0] || 'noroeste');
-const BOT_MOVE_INTERVAL_MS = 20000;
+const BOT_MOVE_INTERVAL_MS = 60000;
 const DAY_PHASES = [
   'Noche',
   'Amanecer',
@@ -1212,6 +1212,10 @@ function subscribeCurrentGroup() {
     renderSuspects();
     updatePlayButtons();
     subscribeClues();
+    renderCrimeScenePlayers();
+    renderPlayerProfile();
+    renderCrimeSectionSelection();
+    updateGameChatAvailability();
   });
 }
 
