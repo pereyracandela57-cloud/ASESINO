@@ -822,7 +822,7 @@ function renderPhasesPanel() {
 
 function getAliveAccusationTargets() {
   return (state.currentGroup?.participants || []).filter((participant) => {
-    if (!participant || participant.fake) return false;
+    if (!participant) return false;
     if (participant.uid === state.user?.uid) return false;
     if (isParticipantDead(participant.uid)) return false;
     return true;
