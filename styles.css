@@ -520,6 +520,19 @@ textarea { min-height: 92px; resize: vertical; }
   font-weight: 700;
 }
 
+.phase-actions {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+}
+
+.phase-accuse-list {
+  margin-top: 10px;
+  display: grid;
+  gap: 8px;
+}
+
 .mini-divider {
   border: 0;
   border-top: 1px solid #4b1717;
