@@ -109,9 +109,26 @@
 
     <div id="game-overlay" class="modal-overlay hidden">
       <div class="game-screen">
+        <section class="crime-room-panel">
+          <header class="game-panel-header">
+            <h3>Sala del crimen</h3>
+            <p class="meta">Haz click en una sección para entrar a su chat privado.</p>
+          </header>
+          <div id="crime-room-grid" class="crime-room-grid">
+            <button type="button" class="crime-room-cell" data-section="noroeste">Noroeste</button>
+            <button type="button" class="crime-room-cell" data-section="norte-este">Noreste</button>
+            <button type="button" class="crime-room-cross horizontal"></button>
+            <button type="button" class="crime-room-cross vertical"></button>
+            <button type="button" class="crime-room-cell" data-section="suroeste">Suroeste</button>
+            <button type="button" class="crime-room-cell" data-section="sur-este">Sureste</button>
+          </div>
+          <article id="player-profile" class="player-profile"></article>
+        </section>
+
         <aside class="game-chat-panel">
           <header class="game-panel-header">
-            <h3>Chat en vivo</h3>
+            <h3>Chat de sección</h3>
+            <p id="active-chat-section" class="meta">Sin sección seleccionada</p>
             <p class="meta">Máximo 15 mensajes visibles</p>
           </header>
           <div id="game-chat-messages" class="game-chat-messages"></div>
@@ -127,8 +144,6 @@
             <button type="button" id="close-game-btn" class="secondary">✕</button>
             <button type="button" id="end-game-btn" class="primary">Terminar partida</button>
           </header>
-
-          <article id="player-profile" class="player-profile"></article>
         </section>
       </div>
     </div>

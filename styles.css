@@ -192,6 +192,44 @@ textarea { min-height: 92px; resize: vertical; }
   padding: 14px;
 }
 
+.crime-room-panel {
+  border: 1px solid #3f0000;
+  border-radius: 14px;
+  padding: 14px;
+  background: linear-gradient(160deg, #1a1a1a, #0c0c0c);
+}
+
+.crime-room-grid {
+  margin: 10px 0 14px;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(80px, 1fr));
+  grid-template-rows: repeat(2, 120px);
+  gap: 10px;
+}
+
+.crime-room-cell,
+.crime-room-cross {
+  border: 1px solid #4a1717;
+  border-radius: 10px;
+  background: rgba(0, 0, 0, 0.35);
+  color: #ffd6d6;
+}
+
+.crime-room-cell.selected {
+  border-color: #ff4c4c;
+  box-shadow: 0 0 12px rgba(255, 0, 0, 0.4);
+}
+
+.crime-room-cross.horizontal {
+  grid-column: 2 / 4;
+  grid-row: 1;
+}
+
+.crime-room-cross.vertical {
+  grid-column: 2 / 4;
+  grid-row: 2;
+}
+
 .suspects-list,
 .invites-list {
   display: grid;
@@ -292,7 +330,7 @@ textarea { min-height: 92px; resize: vertical; }
   width: 100vw;
   height: 100vh;
   display: grid;
-  grid-template-columns: 1fr 380px;
+  grid-template-columns: 3fr 1fr;
   background: #050505;
 }
 
@@ -306,6 +344,11 @@ textarea { min-height: 92px; resize: vertical; }
   display: grid;
   grid-template-rows: auto 1fr auto;
   gap: 10px;
+}
+
+.game-profile-panel {
+  grid-column: 1 / -1;
+  border-top: 1px solid #3f0000;
 }
 
 .game-chat-messages {
