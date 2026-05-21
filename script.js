@@ -152,6 +152,7 @@ const state = {
   persistedGroupParticipants: [],
   groupUnsubscribe: null,
   deathAlertShown: false,
+  dawnAlertShownForPhase: null,
 };
 
 function getRealGroupMembers() {
@@ -560,15 +561,37 @@ function renderPhasesPanel() {
   }).join('');
   phaseProgress.textContent = `Votos para avanzar: ${votesCount}/${realPlayerUids.length || 0}`;
   nextPhaseBtn.disabled = !state.user || state.gameState?.status !== 'active' || alreadyVoted || dead;
-  if (dead) {
-    nextPhaseBtn.textContent = 'HAS SIDO ASESINADO';
-  } else if (alreadyVoted) {
-    nextPhaseBtn.textContent = 'VOTO REGISTRADO';
-  } else if (currentPhase === 3) {
-    nextPhaseBtn.textContent = 'PASAR A FASE 4';
-  } else {
-    nextPhaseBtn.textContent = 'SIGUIENTE FASE';
+  nextPhaseBtn.textContent = dead ? 'HAS SIDO ASESINADO' : (alreadyVoted ? 'VOTO REGISTRADO' : 'SIGUIENTE FASE');
+  if (dawnNextPhaseBtn) {
+    dawnNextPhaseBtn.disabled = nextPhaseBtn.disabled;
+    dawnNextPhaseBtn.textContent = alreadyVoted ? 'VOTO REGISTRADO' : 'Pasar a la siguiente Fase';
   }
+}
+
+function getLastKilledCharacterName() {
+  const killedEntries = Object.entries(getKilledUids());
+  if (!killedEntries.length) return null;
+  const [lastKilledUid] = killedEntries.sort((a, b) => (a[1] || 0) - (b[1] || 0)).at(-1);
+  const participant = (state.currentGroup?.participants || []).find((member) => member.uid === lastKilledUid);
+  const character = state.characters.find((item) => item.id === participant?.characterId);
+  return character?.nombre || participant?.name || 'UN PERSONAJE';
+}
+
+function showDawnOverlayIfNeeded() {
+  if (!dawnOverlay || !state.user || state.gameState?.status !== 'active') return;
+  const currentPhase = state.gameState?.currentPhase || 1;
+  if (currentPhase !== 2) return;
+  const phaseStamp = `${state.currentGroup?.id || 'no-group'}-${currentPhase}-${state.gameState?.phaseUpdatedAt || 0}`;
+  if (state.dawnAlertShownForPhase === phaseStamp) return;
+
+  const killedName = getLastKilledCharacterName() || 'UN PERSONAJE';
+  dawnMessage.textContent = `${killedName.toUpperCase()} HA SIDO ASESINADO DURANTE LA NOCHE`;
+  dawnOverlay.classList.remove('hidden');
+  state.dawnAlertShownForPhase = phaseStamp;
+}
+
+function closeDawnOverlay() {
+  dawnOverlay?.classList.add('hidden');
 }
 
 function openCrimeScenePhasesTab() {
@@ -745,7 +768,8 @@ function normalizeGroupMembers(rawMembers = []) {
   const missingCount = REQUIRED_PARTICIPANTS - realMembers.length;
   const fakeMembers = Array.from({ length: missingCount }, (_, index) => ({
     uid: `fake-${index + 1}`,
-    name: BOT_NAMES[index] || `BOT ${index + 1}`,
+    name: `Usuario ${index + 1}`,
+    botCharacterName: BOT_NAMES[index] || `BOT ${index + 1}`,
     fake: true,
   }));
 
@@ -764,11 +788,12 @@ function renderCrimeScenePlayers() {
 
   participants.forEach((participant) => {
     const character = state.characters.find((item) => item.id === participant.characterId);
+    const characterName = character?.nombre || participant.botCharacterName || 'Sin personaje';
     const deadLabel = isParticipantDead(participant.uid) ? ' · ☠️ Eliminado' : '';
     const btn = document.createElement('button');
     btn.type = 'button';
     btn.className = 'character-option';
-    btn.innerHTML = `<strong>${participant.name}</strong><br><span class="meta">${character?.nombre || 'Sin personaje'}${deadLabel}</span>`;
+    btn.innerHTML = `<strong>${participant.name}</strong><br><span class="meta">${characterName}${deadLabel}</span>`;
     btn.addEventListener('click', () => {
       state.selectedCrimeParticipantUid = participant.uid;
       sceneCharacterDetail.innerHTML = character
@@ -868,7 +893,7 @@ function renderSuspects() {
   const participants = normalizeGroupMembers(state.currentGroup?.participants || []);
   groupCount.textContent = participants.length;
   groupMembers.innerHTML = participants
-    .map((member) => `<li>${member.name}${member.fake ? ' (falso)' : ''}</li>`)
+    .map((member) => `<li>${member.name}${member.fake ? ` · ${member.botCharacterName}` : ''}</li>`)
     .join('');
 }
 
@@ -1066,6 +1091,7 @@ onAuthStateChanged(auth, async (user) => {
       renderCrimeScenePlayers();
       renderPlayerProfile();
       renderPhasesPanel();
+      showDawnOverlayIfNeeded();
     });
   } else {
     if (state.groupUnsubscribe) {
@@ -1320,4 +1346,19 @@ nextPhaseBtn?.addEventListener('click', async () => {
     console.error('No se pudo avanzar de fase:', error);
     alert('No se pudo registrar el voto para avanzar de fase.');
   }
+});
+
+dawnNextPhaseBtn?.addEventListener('click', async () => {
+  try {
+    await voteNextPhase();
+    closeDawnOverlay();
+  } catch (error) {
+    console.error('No se pudo avanzar de fase desde amanecer:', error);
+    alert('No se pudo registrar el voto para avanzar de fase.');
+  }
+});
+
+closeDawnBtn?.addEventListener('click', closeDawnOverlay);
+dawnOverlay?.addEventListener('click', (event) => {
+  if (event.target === dawnOverlay) closeDawnOverlay();
 });
