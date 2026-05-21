@@ -107,6 +107,7 @@ const playerProfile = document.getElementById('player-profile');
 const scenePlayersList = document.getElementById('scene-players-list');
 const sceneCharacterDetail = document.getElementById('scene-character-detail');
 const killPlayerBtn = document.getElementById('kill-player-btn');
+const accusePlayerBtn = document.getElementById('accuse-player-btn');
 const galleryContextMenu = document.getElementById('gallery-context-menu');
 const contextEditBtn = document.getElementById('context-edit-btn');
 const contextDeleteBtn = document.getElementById('context-delete-btn');
@@ -145,6 +146,7 @@ const state = {
   groupUnsubscribe: null,
   deathAlertShown: false,
   dawnAlertShownForPhase: null,
+  lastExecutionAlertKey: null,
 };
 
 function getRealGroupMembers() {
@@ -262,8 +264,12 @@ async function ensureGameRole() {
   if (!gameState?.killerUid) {
     const members = getRealGroupMembers();
     const randomIndex = Math.floor(Math.random() * members.length);
+    const killerUid = members[randomIndex]?.uid || state.user.uid;
+    const detectiveCandidates = members.filter((member) => member.uid !== killerUid);
+    const detectiveUid = detectiveCandidates[Math.floor(Math.random() * detectiveCandidates.length)]?.uid || null;
     gameState = {
-      killerUid: members[randomIndex]?.uid || state.user.uid,
+      killerUid,
+      detectiveUid,
       createdAt: Date.now(),
       status: 'active',
       currentPhase: 1,
@@ -273,7 +279,9 @@ async function ensureGameRole() {
   }
 
   state.gameState = gameState;
-  state.gameRole = gameState.killerUid === state.user.uid ? 'asesino' : 'civil';
+  state.gameRole = gameState.killerUid === state.user.uid
+    ? 'asesino'
+    : (gameState.detectiveUid === state.user.uid ? 'detective' : 'civil');
   updatePlayButtons();
 }
 
@@ -281,7 +289,7 @@ function renderPlayerProfile() {
   const character = getMyCharacter();
   const image = character?.image || 'https://via.placeholder.com/320x320?text=Sin+foto';
   const name = character?.nombre || state.user?.displayName || 'Jugador';
-  const roleLabel = state.gameRole === 'asesino' ? 'ASESINO' : 'CIVIL';
+  const roleLabel = state.gameRole === 'asesino' ? 'ASESINO' : (state.gameRole === 'detective' ? 'DETECTIVE' : 'CIVIL');
   const isDead = isParticipantDead(state.user?.uid);
   const bloodBadge = state.gameRole === 'asesino' ? '<span class="blood-drop" title="Asesino">🩸</span>' : '';
 
@@ -357,6 +365,16 @@ function canCurrentUserKill(targetParticipant) {
   return true;
 }
 
+function canCurrentUserAccuse(targetParticipant) {
+  if (!targetParticipant || targetParticipant.fake) return false;
+  if (state.gameRole !== 'detective') return false;
+  if (state.gameState?.status !== 'active') return false;
+  if ((state.gameState?.currentPhase || 1) !== 4) return false;
+  if (targetParticipant.uid === state.user?.uid) return false;
+  if (isParticipantDead(targetParticipant.uid)) return false;
+  return true;
+}
+
 function updateGameChatAvailability() {
   const dead = isParticipantDead(state.user?.uid);
   const missingSection = !state.currentCrimeSection;
@@ -388,6 +406,36 @@ async function killParticipant(targetUid) {
       [targetUid]: Date.now(),
     },
   });
+}
+
+async function accuseParticipant(targetUid) {
+  if (!state.currentGroup?.id || !targetUid || state.gameRole !== 'detective') return;
+  const gameRef = ref(database, `games/${state.currentGroup.id}`);
+  const snapshot = await get(gameRef);
+  const latestGame = snapshot.val() || state.gameState || {};
+  if ((latestGame.currentPhase || 1) !== 4 || latestGame.status !== 'active') return;
+
+  const methods = ['HORCA', 'SILLA ELECTRICA', 'FUSILAMIENTO'];
+  const method = methods[Math.floor(Math.random() * methods.length)];
+  const accusedWasKiller = latestGame.killerUid === targetUid;
+  const killedUids = latestGame.killedUids || {};
+
+  const updatedGame = {
+    ...latestGame,
+    lastExecution: { uid: targetUid, method, wasKiller: accusedWasKiller, at: Date.now() },
+  };
+
+  if (accusedWasKiller) {
+    updatedGame.status = 'finished';
+    updatedGame.winner = 'detective-civiles';
+  } else {
+    updatedGame.killedUids = { ...killedUids, [targetUid]: Date.now() };
+    updatedGame.currentPhase = 1;
+    updatedGame.phaseVotes = {};
+    updatedGame.phaseUpdatedAt = Date.now();
+  }
+
+  await set(gameRef, updatedGame);
 }
 function renderCharacterOptions() {
   characterOptions.innerHTML = '';
@@ -577,6 +625,33 @@ function showDawnOverlayIfNeeded() {
   dawnMessage.textContent = `${killedName.toUpperCase()} HA SIDO ASESINADO DURANTE LA NOCHE`;
   dawnOverlay.classList.remove('hidden');
   state.dawnAlertShownForPhase = phaseStamp;
+}
+
+function getParticipantDisplayName(uid) {
+  const participant = (state.currentGroup?.participants || []).find((member) => member.uid === uid);
+  const character = state.characters.find((item) => item.id === participant?.characterId);
+  return character?.nombre || participant?.name || 'ALGUIEN';
+}
+
+function showExecutionOverlayIfNeeded() {
+  const execution = state.gameState?.lastExecution;
+  if (!execution?.uid) return;
+  const executionKey = `${execution.uid}-${execution.at || 0}-${execution.method || 'NA'}`;
+  if (state.lastExecutionAlertKey === executionKey) return;
+  state.lastExecutionAlertKey = executionKey;
+
+  const executedName = getParticipantDisplayName(execution.uid).toUpperCase();
+  const methodLabelMap = {
+    HORCA: 'CONDENADO A LA HORCA',
+    'SILLA ELECTRICA': 'CONDENADO A LA SILLA ELECTRICA',
+    FUSILAMIENTO: 'FUSILADO',
+  };
+  alert(`${executedName} FUE ${methodLabelMap[execution.method] || 'EJECUTADO'}`);
+  if (execution.wasKiller) {
+    alert(`${executedName} ERA EL ASESINO, EL PUEBLO ESTÁ A SALVO GRACIAS AL DETECTIVE`);
+  } else {
+    alert(`${executedName} NO ERA EL ASESINO, EL DETECTIVE MATÓ A UN INOCENTE`);
+  }
 }
 
 function closeDawnOverlay() {
@@ -773,6 +848,8 @@ function renderCrimeScenePlayers() {
   state.selectedCrimeParticipantUid = null;
   killPlayerBtn.classList.add('hidden');
   killPlayerBtn.disabled = true;
+  accusePlayerBtn?.classList.add('hidden');
+  if (accusePlayerBtn) accusePlayerBtn.disabled = true;
   sceneCharacterDetail.innerHTML = '<p class="meta">Haz click en un jugador para ver sus características.</p>';
 
   participants.forEach((participant) => {
@@ -792,6 +869,9 @@ function renderCrimeScenePlayers() {
       const showKill = canCurrentUserKill(participant);
       killPlayerBtn.classList.toggle('hidden', !showKill);
       killPlayerBtn.disabled = !showKill;
+      const showAccuse = canCurrentUserAccuse(participant);
+      accusePlayerBtn?.classList.toggle('hidden', !showAccuse);
+      if (accusePlayerBtn) accusePlayerBtn.disabled = !showAccuse;
     });
 
     btn.addEventListener('contextmenu', (event) => {
@@ -1081,6 +1161,7 @@ onAuthStateChanged(auth, async (user) => {
       renderPlayerProfile();
       renderPhasesPanel();
       showDawnOverlayIfNeeded();
+      showExecutionOverlayIfNeeded();
     });
   } else {
     if (state.groupUnsubscribe) {
@@ -1267,6 +1348,17 @@ killPlayerBtn.addEventListener('click', async () => {
   } catch (error) {
     console.error('No se pudo asesinar al participante:', error);
     alert('No se pudo completar el asesinato. Intenta de nuevo.');
+  }
+});
+
+accusePlayerBtn?.addEventListener('click', async () => {
+  if (!state.selectedCrimeParticipantUid) return;
+  try {
+    await accuseParticipant(state.selectedCrimeParticipantUid);
+    accusePlayerBtn.classList.add('hidden');
+  } catch (error) {
+    console.error('No se pudo acusar al participante:', error);
+    alert('No se pudo completar la acusación. Intenta de nuevo.');
   }
 });
 
