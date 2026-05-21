@@ -500,13 +500,18 @@ async function resolveGameAfterKill(latestGame) {
     : 'La partida terminó: el detective eliminó al asesino. Ganan todos menos el asesino.');
 }
 
-function canCurrentUserKill(targetParticipant) {
+function canCurrentUserSeeKillButton(targetParticipant) {
   if (!targetParticipant || targetParticipant.fake) return false;
   if (state.gameRole !== 'asesino') return false;
   if (state.gameState?.status !== 'active') return false;
-  if ((state.gameState?.currentPhase || 1) !== 1) return false;
   if (targetParticipant.uid === state.user?.uid) return false;
   if (isParticipantDead(targetParticipant.uid)) return false;
+  return true;
+}
+
+function canCurrentUserKill(targetParticipant) {
+  if (!canCurrentUserSeeKillButton(targetParticipant)) return false;
+  if ((state.gameState?.currentPhase || 1) !== 1) return false;
   return true;
 }
 
@@ -535,6 +540,10 @@ function updateGameChatAvailability() {
 async function killParticipant(targetUid) {
   if (!state.currentGroup?.id || !targetUid) return;
   if (state.gameRole !== 'asesino') return;
+  if ((state.gameState?.currentPhase || 1) !== 1 || state.gameState?.status !== 'active') {
+    alert('Solo puedes asesinar durante la fase Noche.');
+    return;
+  }
 
   const gameRef = ref(database, `games/${state.currentGroup.id}`);
   const snapshot = await get(gameRef);
@@ -1091,9 +1100,9 @@ function renderCrimeScenePlayers() {
         ? `<h4>${character.nombre}</h4><p class="meta"><strong>Historia:</strong> ${character.historia}</p><p class="meta"><strong>Rasgos:</strong> ${character.rasgos}</p><p class="meta"><strong>Traumas:</strong> ${character.traumas}</p><p class="meta"><strong>Miedo:</strong> ${character.miedo}</p>${isParticipantDead(participant.uid) ? '<p class="meta"><strong>Estado:</strong> Eliminado</p>' : ''}`
         : '<p class="meta">Este jugador aún no eligió personaje.</p>';
 
-      const showKill = canCurrentUserKill(participant);
+      const showKill = canCurrentUserSeeKillButton(participant);
       killPlayerBtn.classList.toggle('hidden', !showKill);
-      killPlayerBtn.disabled = !showKill;
+      killPlayerBtn.disabled = !canCurrentUserKill(participant);
       const showAccuse = canCurrentUserAccuse(participant);
       accusePlayerBtn?.classList.toggle('hidden', !showAccuse);
       if (accusePlayerBtn) accusePlayerBtn.disabled = !showAccuse;
