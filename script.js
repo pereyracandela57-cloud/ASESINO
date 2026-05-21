@@ -40,6 +40,17 @@ const provider = new GoogleAuthProvider();
 const charactersRef = ref(database, 'characters');
 const presenceRef = ref(database, 'presence');
 const REQUIRED_PARTICIPANTS = 10;
+
+const BOT_MOVE_INTERVAL_MS = 15000;
+const DEFAULT_SECTION = 'centro-arriba';
+const CRIME_SECTIONS = [
+  'noroeste',
+  'centro-arriba',
+  'noreste',
+  'suroeste',
+  'centro-abajo',
+  'sureste',
+];
 const BOT_NAMES = [
   'BOB',
   'HERMANO DE BOB',
@@ -157,6 +168,7 @@ const state = {
   deathAlertShown: false,
   dawnAlertShownForPhase: null,
   lastExecutionAlertKey: null,
+  botMovementInterval: null,
 };
 
 function getRealGroupMembers() {
@@ -181,6 +193,55 @@ function getTakenCharacterIds() {
 
 function isBotCharacter(character) {
   return BOT_NAMES.includes(character?.nombre);
+}
+
+function getRandomCrimeSection() {
+  const index = Math.floor(Math.random() * CRIME_SECTIONS.length);
+  return CRIME_SECTIONS[index] || DEFAULT_SECTION;
+}
+
+function getParticipantSection(participant) {
+  if (!participant) return null;
+  return participant.section || DEFAULT_SECTION;
+}
+
+function getParticipantsInCurrentSection(participants = []) {
+  if (!state.currentCrimeSection) return participants;
+  return participants.filter((participant) => getParticipantSection(participant) === state.currentCrimeSection);
+}
+
+async function maybeStartBotMovement() {
+  if (state.botMovementInterval || !state.currentGroup?.id || !state.gameState || state.gameState.status !== 'active') return;
+
+  state.botMovementInterval = setInterval(async () => {
+    try {
+      const groupRef = ref(database, `groups/${state.currentGroup.id}`);
+      const snapshot = await get(groupRef);
+      const latestGroup = snapshot.val();
+      if (!latestGroup?.participants?.length) return;
+
+      const movedParticipants = latestGroup.participants.map((participant) => {
+        if (!participant?.fake) return participant;
+        return {
+          ...participant,
+          section: getRandomCrimeSection(),
+        };
+      });
+
+      await set(groupRef, {
+        ...latestGroup,
+        participants: movedParticipants,
+      });
+    } catch (error) {
+      console.error('No se pudo mover bots de sección:', error);
+    }
+  }, BOT_MOVE_INTERVAL_MS);
+}
+
+function stopBotMovement() {
+  if (!state.botMovementInterval) return;
+  clearInterval(state.botMovementInterval);
+  state.botMovementInterval = null;
 }
 
 function getSelectableCharactersForParticipant(participant) {
@@ -968,6 +1029,7 @@ function normalizeGroupMembers(rawMembers = []) {
     name: `Usuario ${index + 1}`,
     botCharacterName: BOT_NAMES[index] || `BOT ${index + 1}`,
     fake: true,
+    section: DEFAULT_SECTION,
   }));
 
   return [...realMembers, ...fakeMembers];
@@ -975,7 +1037,9 @@ function normalizeGroupMembers(rawMembers = []) {
 
 function renderCrimeScenePlayers() {
   if (!scenePlayersList || !sceneCharacterDetail || !killPlayerBtn) return;
-  const participants = normalizeGroupMembers(state.currentGroup?.participants || []);
+  const participants = getParticipantsInCurrentSection(
+    normalizeGroupMembers(state.currentGroup?.participants || []),
+  );
 
   scenePlayersList.innerHTML = '';
   state.selectedCrimeParticipantUid = null;
@@ -1295,6 +1359,11 @@ onAuthStateChanged(auth, async (user) => {
       updatePlayButtons();
       updateGameChatAvailability();
       renderCrimeScenePlayers();
+      if (state.gameState?.status === 'active') {
+        maybeStartBotMovement();
+      } else {
+        stopBotMovement();
+      }
       renderPlayerProfile();
       renderPhasesPanel();
       showDawnOverlayIfNeeded();
@@ -1307,6 +1376,7 @@ onAuthStateChanged(auth, async (user) => {
     }
     state.persistedGroupParticipants = [];
     state.currentGroup = null;
+    stopBotMovement();
     renderSuspects();
     updatePlayButtons();
   }
@@ -1377,11 +1447,34 @@ crimeKillBtn.addEventListener('click', async () => {
   }
 });
 closeGameBtn.addEventListener('click', closeGameModal);
-crimeRoomGrid.addEventListener('click', (event) => {
+crimeRoomGrid.addEventListener('click', async (event) => {
   const sectionButton = event.target.closest('.crime-room-cell');
   if (!sectionButton) return;
   state.currentCrimeSection = sectionButton.dataset.section;
+
+  if (state.currentGroup?.id && state.user?.uid) {
+    try {
+      const groupRef = ref(database, `groups/${state.currentGroup.id}`);
+      const snapshot = await get(groupRef);
+      const latestGroup = snapshot.val();
+      if (latestGroup?.participants?.length) {
+        const updatedParticipants = latestGroup.participants.map((participant) => (
+          participant.uid === state.user.uid
+            ? { ...participant, section: state.currentCrimeSection }
+            : participant
+        ));
+        await set(groupRef, {
+          ...latestGroup,
+          participants: updatedParticipants,
+        });
+      }
+    } catch (error) {
+      console.error('No se pudo actualizar la sección del jugador:', error);
+    }
+  }
+
   renderCrimeSectionSelection();
+  renderCrimeScenePlayers();
   subscribeGameChat();
   updateGameChatAvailability();
 });
@@ -1403,7 +1496,7 @@ openCrimeSceneBtn.addEventListener('click', async () => {
     await ensureGameRole();
   }
   renderPlayerProfile();
-  state.currentCrimeSection = null;
+  state.currentCrimeSection = DEFAULT_SECTION;
   renderCrimeSectionSelection();
   updateGameChatAvailability();
   openGameModal();
