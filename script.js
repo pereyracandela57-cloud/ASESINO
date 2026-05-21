@@ -1085,17 +1085,26 @@ async function setupPresence() {
 }
 
 function normalizeGroupMembers(rawMembers = []) {
-  const realMembers = rawMembers.filter((member) => member && !member.fake);
+  const realMembers = rawMembers
+    .filter((member) => member && !member.fake)
+    .map((member) => ({
+      ...member,
+      fake: false,
+      section: member.section || DEFAULT_SECTION,
+    }));
+
   const existingFakeMembers = rawMembers.filter((member) => member?.fake);
 
   const fakeMembers = Array.from({ length: REQUIRED_BOTS }, (_, index) => {
     const existingFake = existingFakeMembers.find((member) => member.uid === `fake-${index + 1}`);
     return {
+      ...existingFake,
       uid: `fake-${index + 1}`,
       name: existingFake?.name || `Usuario ${index + 1}`,
-      botCharacterName: BOT_NAMES[index] || `BOT ${index + 1}`,
+      botCharacterName: existingFake?.botCharacterName || BOT_NAMES[index] || `BOT ${index + 1}`,
       fake: true,
       characterId: existingFake?.characterId || null,
+      section: existingFake?.section || DEFAULT_SECTION,
     };
   });
 
