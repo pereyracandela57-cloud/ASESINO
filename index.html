@@ -92,7 +92,11 @@
               <h3>Fases del día</h3>
               <ol id="phases-list" class="phases-list"></ol>
               <p id="phase-progress" class="meta"></p>
-              <button id="next-phase-btn" type="button" class="primary">SIGUIENTE FASE</button>
+              <div class="phase-actions">
+                <button id="next-phase-btn" type="button" class="primary">SIGUIENTE FASE</button>
+                <button id="phase-accuse-btn" type="button" class="primary hidden">ACUSAR</button>
+              </div>
+              <div id="phase-accuse-list" class="phase-accuse-list hidden"></div>
             </section>
             <section id="crime-clues-panel" class="suspects-panel hidden">
               <h3>Pistas marcadas</h3>

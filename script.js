@@ -146,6 +146,8 @@ const crimeCluesPanel = document.getElementById('crime-clues-panel');
 const phasesList = document.getElementById('phases-list');
 const phaseProgress = document.getElementById('phase-progress');
 const nextPhaseBtn = document.getElementById('next-phase-btn');
+const phaseAccuseBtn = document.getElementById('phase-accuse-btn');
+const phaseAccuseList = document.getElementById('phase-accuse-list');
 const cluesList = document.getElementById('clues-list');
 const dawnOverlay = document.getElementById('dawn-overlay');
 const dawnMessage = document.getElementById('dawn-message');
@@ -815,6 +817,60 @@ function renderPhasesPanel() {
     dawnNextPhaseBtn.disabled = nextPhaseBtn.disabled;
     dawnNextPhaseBtn.textContent = alreadyVoted ? 'VOTO REGISTRADO' : 'Pasar a la siguiente Fase';
   }
+  renderPhaseAccuseControls(currentPhase);
+}
+
+function getAliveAccusationTargets() {
+  return (state.currentGroup?.participants || []).filter((participant) => {
+    if (!participant || participant.fake) return false;
+    if (participant.uid === state.user?.uid) return false;
+    if (isParticipantDead(participant.uid)) return false;
+    return true;
+  });
+}
+
+function renderPhaseAccuseControls(currentPhase) {
+  if (!phaseAccuseBtn || !phaseAccuseList) return;
+  const canShowButton = state.gameRole === 'detective'
+    && state.gameState?.status === 'active'
+    && currentPhase === 4
+    && !isParticipantDead(state.user?.uid);
+
+  phaseAccuseBtn.classList.toggle('hidden', !canShowButton);
+  phaseAccuseBtn.disabled = !canShowButton;
+  phaseAccuseList.classList.add('hidden');
+  phaseAccuseList.innerHTML = '';
+}
+
+function openPhaseAccuseList() {
+  if (!phaseAccuseList) return;
+  const targets = getAliveAccusationTargets();
+  if (!targets.length) {
+    phaseAccuseList.innerHTML = '<p class="meta">No hay personajes vivos para acusar.</p>';
+    phaseAccuseList.classList.remove('hidden');
+    return;
+  }
+
+  phaseAccuseList.innerHTML = '';
+  targets.forEach((participant) => {
+    const character = state.characters.find((item) => item.id === participant.characterId);
+    const characterName = character?.nombre || participant.botCharacterName || participant.name || 'Sin personaje';
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'secondary';
+    button.textContent = characterName;
+    button.addEventListener('click', async () => {
+      try {
+        await accuseParticipant(participant.uid);
+        phaseAccuseList.classList.add('hidden');
+      } catch (error) {
+        console.error('No se pudo acusar al participante desde Fases:', error);
+        alert('No se pudo completar la acusación. Intenta de nuevo.');
+      }
+    });
+    phaseAccuseList.appendChild(button);
+  });
+  phaseAccuseList.classList.remove('hidden');
 }
 
 function getLastKilledCharacterName() {
@@ -1817,6 +1873,10 @@ nextPhaseBtn?.addEventListener('click', async () => {
     console.error('No se pudo avanzar de fase:', error);
     alert('No se pudo registrar el voto para avanzar de fase.');
   }
+});
+
+phaseAccuseBtn?.addEventListener('click', () => {
+  openPhaseAccuseList();
 });
 
 dawnNextPhaseBtn?.addEventListener('click', async () => {
