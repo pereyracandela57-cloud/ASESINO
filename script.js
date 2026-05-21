@@ -370,6 +370,54 @@ function isParticipantDead(uid) {
   return Boolean(getKilledUids()[uid]);
 }
 
+function getAliveRealParticipants(game = state.gameState, group = state.currentGroup) {
+  const killed = game?.killedUids || {};
+  return (group?.participants || [])
+    .filter((member) => !member.fake)
+    .filter((member) => !killed[member.uid]);
+}
+
+async function cleanupFinishedGame(groupId) {
+  if (!groupId) return;
+  const groupRef = ref(database, `groups/${groupId}`);
+  const groupSnapshot = await get(groupRef);
+  const latestGroup = groupSnapshot.val();
+  if (latestGroup) {
+    const clearedParticipants = (latestGroup.participants || []).map((member) => ({ ...member, characterId: null }));
+    await set(groupRef, {
+      ...latestGroup,
+      participants: clearedParticipants,
+    });
+  }
+
+  await Promise.all([
+    remove(ref(database, `games/${groupId}`)),
+    remove(ref(database, `selectedCharacters/${groupId}`)),
+    remove(ref(database, `gameChats/${groupId}`)),
+  ]);
+}
+
+async function resolveGameAfterKill(latestGame) {
+  if (!state.currentGroup?.id) return;
+  const aliveParticipants = getAliveRealParticipants(latestGame, state.currentGroup);
+  const killerAlive = aliveParticipants.some((member) => member.uid === latestGame.killerUid);
+  const detectiveAlive = aliveParticipants.some((member) => member.uid === latestGame.detectiveUid);
+  const killerDead = Boolean(latestGame.killedUids?.[latestGame.killerUid]);
+
+  const assassinWin = killerAlive && aliveParticipants.length <= 2;
+  const detectiveWin = killerDead && detectiveAlive;
+
+  if (!assassinWin && !detectiveWin) return;
+
+  await cleanupFinishedGame(state.currentGroup.id);
+  state.gameState = null;
+  updatePlayButtons();
+  closeGameModal();
+  alert(assassinWin
+    ? 'La partida terminó: el asesino eliminó a todos hasta dejar solo a un superviviente.'
+    : 'La partida terminó: el detective eliminó al asesino. Ganan todos menos el asesino.');
+}
+
 function canCurrentUserKill(targetParticipant) {
   if (!targetParticipant || targetParticipant.fake) return false;
   if (state.gameRole !== 'asesino') return false;
@@ -413,21 +461,16 @@ async function killParticipant(targetUid) {
 
   if (killedUids[targetUid]) return;
 
-  const targetIsDetective = latestGame.detectiveUid === targetUid;
-  await set(gameRef, {
+  const updatedGame = {
     ...latestGame,
-    status: targetIsDetective ? 'finished' : (latestGame.status || 'active'),
-    winner: targetIsDetective ? 'detective' : (latestGame.winner || null),
-    endedAt: targetIsDetective ? Date.now() : (latestGame.endedAt || null),
+    status: latestGame.status || 'active',
     killedUids: {
       ...killedUids,
       [targetUid]: Date.now(),
     },
-  });
-
-  if (targetIsDetective) {
-    alert('Intentaste asesinar al detective. ¡Perdiste la partida!');
-  }
+  };
+  await set(gameRef, updatedGame);
+  await resolveGameAfterKill(updatedGame);
 }
 
 async function accuseParticipant(targetUid) {
@@ -1393,22 +1436,11 @@ accusePlayerBtn?.addEventListener('click', async () => {
 endGameBtn.addEventListener('click', async () => {
   if (!state.currentGroup?.id) return;
   try {
-    const groupRef = ref(database, `groups/${state.currentGroup.id}`);
-    const groupSnapshot = await get(groupRef);
-    const latestGroup = groupSnapshot.val() || state.currentGroup;
-    const clearedParticipants = (latestGroup.participants || []).map((member) => ({ ...member, characterId: null }));
-    await set(groupRef, {
-      ...latestGroup,
-      participants: clearedParticipants,
-    });
-    await remove(ref(database, `selectedCharacters/${state.currentGroup.id}`));
-    await set(ref(database, `games/${state.currentGroup.id}`), {
-      ...(state.gameState || {}),
-      status: 'finished',
-      endedAt: Date.now(),
-    });
+    await cleanupFinishedGame(state.currentGroup.id);
+    state.gameState = null;
+    updatePlayButtons();
     closeGameModal();
-    alert('Partida finalizada. Ya puedes iniciar una nueva desde JUGAR.');
+    alert('Partida finalizada y eliminada de Firebase. Ya puedes iniciar una nueva desde JUGAR.');
   } catch (error) {
     console.error('No se pudo terminar la partida:', error);
     alert('No se pudo terminar la partida.');
