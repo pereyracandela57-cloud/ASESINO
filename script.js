@@ -115,9 +115,11 @@ const crimeKillBtn = document.getElementById('crime-kill-btn');
 const crimeCharactersPanel = document.getElementById('crime-characters-panel');
 const crimeCharactersDetailPanel = document.getElementById('crime-characters-detail-panel');
 const crimePhasesPanel = document.getElementById('crime-phases-panel');
+const crimeCluesPanel = document.getElementById('crime-clues-panel');
 const phasesList = document.getElementById('phases-list');
 const phaseProgress = document.getElementById('phase-progress');
 const nextPhaseBtn = document.getElementById('next-phase-btn');
+const cluesList = document.getElementById('clues-list');
 const DAY_PHASES = [
   'Noche',
   'Amanecer',
@@ -153,6 +155,8 @@ const state = {
   groupUnsubscribe: null,
   deathAlertShown: false,
   dawnAlertShownForPhase: null,
+  clues: [],
+  cluesUnsubscribe: null,
 };
 
 function getRealGroupMembers() {
@@ -322,9 +326,25 @@ function renderPlayerProfile() {
 function renderGameChat() {
   gameChatMessages.innerHTML = state.gameMessages
      .slice(-10)
-    .map((msg) => `<p><strong>${msg.name}:</strong> ${msg.text}</p>`)
+    .map((msg) => {
+      const canMark = state.gameRole === 'detective' && state.gameState?.status === 'active';
+      return `<div class="chat-message"><p><strong>${msg.name}:</strong> ${msg.text}</p>${canMark ? `<button type="button" class="secondary mark-clue-btn" data-mark-clue='${JSON.stringify({ uid: msg.uid || '', name: msg.name || 'Jugador', text: msg.text || '' })}'>Marcar como Pista</button>` : ''}</div>`;
+    })
     .join('');
   gameChatMessages.scrollTop = gameChatMessages.scrollHeight;
+}
+
+function renderClues() {
+  if (!cluesList) return;
+  if (!state.clues.length) {
+    cluesList.innerHTML = '<p class="meta">Todavía no hay pistas marcadas.</p>';
+    return;
+  }
+  cluesList.innerHTML = state.clues
+    .slice()
+    .reverse()
+    .map((clue) => `<article class="clue-card"><p><strong>${clue.name || 'Jugador'}:</strong> ${clue.text || ''}</p></article>`)
+    .join('');
 }
 
 function renderCrimeSectionSelection() {
@@ -560,6 +580,7 @@ function openCrimeSceneCharactersTab() {
   crimeCharactersPanel?.classList.remove('hidden');
   crimeCharactersDetailPanel?.classList.remove('hidden');
   crimePhasesPanel?.classList.add('hidden');
+  crimeCluesPanel?.classList.add('hidden');
 }
 
 crimeTabCharactersBtn?.addEventListener('click', openCrimeSceneCharactersTab);
@@ -621,10 +642,36 @@ function openCrimeScenePhasesTab() {
   crimeCharactersPanel?.classList.add('hidden');
   crimeCharactersDetailPanel?.classList.add('hidden');
   crimePhasesPanel?.classList.remove('hidden');
+  crimeCluesPanel?.classList.add('hidden');
   renderPhasesPanel();
 }
 
 crimeTabPhasesBtn?.addEventListener('click', openCrimeScenePhasesTab);
+
+function openCrimeSceneCluesTab() {
+  crimeTabCharactersBtn?.classList.remove('active');
+  crimeTabPhasesBtn?.classList.remove('active');
+  crimeTabCluesBtn?.classList.add('active');
+  crimeCharactersPanel?.classList.add('hidden');
+  crimeCharactersDetailPanel?.classList.add('hidden');
+  crimePhasesPanel?.classList.add('hidden');
+  crimeCluesPanel?.classList.remove('hidden');
+  renderClues();
+}
+
+crimeTabCluesBtn?.addEventListener('click', openCrimeSceneCluesTab);
+
+function subscribeClues() {
+  if (!state.currentGroup?.id) return;
+  if (state.cluesUnsubscribe) state.cluesUnsubscribe();
+  const cluesRef = ref(database, `gameClues/${state.currentGroup.id}`);
+  const unsubscribe = onValue(cluesRef, (snapshot) => {
+    const cluesObj = snapshot.val() || {};
+    state.clues = Object.values(cluesObj).sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
+    renderClues();
+  });
+  state.cluesUnsubscribe = unsubscribe;
+}
 
 async function voteNextPhase() {
   if (!state.currentGroup?.id || !state.user || state.gameState?.status !== 'active') return;
@@ -885,6 +932,7 @@ function subscribeCurrentGroup() {
     syncCurrentGroupFromPresence();
     renderSuspects();
     updatePlayButtons();
+    subscribeClues();
   });
 }
 
@@ -1360,6 +1408,29 @@ gameChatForm.addEventListener('submit', async (event) => {
   }
 
   gameChatInput.value = '';
+});
+
+gameChatMessages.addEventListener('click', async (event) => {
+  const button = event.target.closest('[data-mark-clue]');
+  if (!button || !state.currentGroup?.id) return;
+  if (state.gameRole !== 'detective') {
+    alert('Solo el detective puede marcar pistas.');
+    return;
+  }
+  try {
+    const payload = JSON.parse(button.dataset.markClue || '{}');
+    await push(ref(database, `gameClues/${state.currentGroup.id}`), {
+      uid: payload.uid || '',
+      name: payload.name || 'Jugador',
+      text: payload.text || '',
+      createdAt: Date.now(),
+      markedBy: state.user?.uid || '',
+    });
+    alert('Mensaje marcado como pista.');
+  } catch (error) {
+    console.error('No se pudo marcar la pista:', error);
+    alert('No se pudo marcar la pista.');
+  }
 });
 
 nextPhaseBtn?.addEventListener('click', async () => {

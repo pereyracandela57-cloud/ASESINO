@@ -225,6 +225,32 @@ textarea { min-height: 92px; resize: vertical; }
   border-radius: 14px;
   padding: 14px;
 }
+.clues-list {
+  display: grid;
+  gap: 10px;
+}
+
+.clue-card {
+  border: 1px solid #4a1717;
+  border-radius: 10px;
+  padding: 10px;
+  background: #100909;
+}
+
+.chat-message {
+  margin: 0 0 8px;
+  padding: 8px;
+  border: 1px solid #3d1111;
+  border-radius: 8px;
+  background: #0f0f0f;
+}
+
+.mark-clue-btn {
+  margin-top: 6px;
+  padding: 6px 10px;
+  border-radius: 8px;
+  font-size: 0.8rem;
+}
 
 .crime-room-panel {
   border: 1px solid #3f0000;
