@@ -126,8 +126,9 @@ const closeDawnBtn = document.getElementById('close-dawn-btn');
 const dawnNextPhaseBtn = document.getElementById('dawn-next-phase-btn');
 
 const CRIME_SECTIONS = Array.from(crimeRoomCells).map((cell) => cell.dataset.section).filter(Boolean);
-const DEFAULT_SECTION = CRIME_SECTIONS[0] || 'noroeste';
-const BOT_MOVE_INTERVAL_MS = 15000;
+const LIVING_ROOM_SECTION = 'centro-arriba';
+const DEFAULT_SECTION = CRIME_SECTIONS.includes(LIVING_ROOM_SECTION) ? LIVING_ROOM_SECTION : (CRIME_SECTIONS[0] || 'noroeste');
+const BOT_MOVE_INTERVAL_MS = 20000;
 const DAY_PHASES = [
   'Noche',
   'Amanecer',
@@ -202,8 +203,9 @@ function getParticipantSection(participant) {
 }
 
 function getParticipantsInCurrentSection(participants = []) {
-  if (!state.currentCrimeSection) return participants;
-  return participants.filter((participant) => getParticipantSection(participant) === state.currentCrimeSection);
+  const aliveParticipants = participants.filter((participant) => !isParticipantDead(participant?.uid));
+  if (!state.currentCrimeSection) return aliveParticipants;
+  return aliveParticipants.filter((participant) => getParticipantSection(participant) === state.currentCrimeSection);
 }
 
 async function maybeStartBotMovement() {
@@ -924,12 +926,14 @@ async function maybeRunBotKillerTurn() {
   if (!killer?.fake) return;
   if (state.gameState?.status !== 'active') return;
   if ((state.gameState?.currentPhase || 1) !== 1) return;
-  if (state.gameState?.botKillResolvedAt) return;
 
   const gameRef = ref(database, `games/${state.currentGroup.id}`);
   const snapshot = await get(gameRef);
   const latestGame = snapshot.val() || {};
-  if ((latestGame.currentPhase || 1) !== 1 || latestGame.botKillResolvedAt) return;
+  if ((latestGame.currentPhase || 1) !== 1) return;
+
+  const phaseKey = `${latestGame.currentPhase || 1}:${latestGame.phaseUpdatedAt || 0}`;
+  if (latestGame.botKillResolvedFor === phaseKey) return;
 
   const latestParticipants = state.currentGroup?.participants || [];
   const killedUids = latestGame.killedUids || {};
@@ -948,7 +952,7 @@ async function maybeRunBotKillerTurn() {
     },
     lastKillAt: Date.now(),
     lastKillBy: latestGame.killerUid,
-    botKillResolvedAt: Date.now(),
+    botKillResolvedFor: phaseKey,
   });
 }
 
@@ -1096,6 +1100,7 @@ function normalizeGroupMembers(rawMembers = []) {
       botCharacterName: BOT_NAMES[index] || `BOT ${index + 1}`,
       fake: true,
       characterId: existingFake?.characterId || null,
+      section: existingFake?.section || DEFAULT_SECTION,
     };
   });
 
