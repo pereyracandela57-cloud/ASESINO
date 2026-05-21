@@ -1117,9 +1117,7 @@ function normalizeGroupMembers(rawMembers = []) {
 
 function renderCrimeScenePlayers() {
   if (!scenePlayersList || !sceneCharacterDetail || !killPlayerBtn) return;
-  const participants = getParticipantsInCurrentSection(
-    normalizeGroupMembers(state.currentGroup?.participants || []),
-  );
+  const participants = normalizeGroupMembers(state.currentGroup?.participants || []);
 
   scenePlayersList.innerHTML = '';
   state.selectedCrimeParticipantUid = null;
@@ -1133,10 +1131,11 @@ function renderCrimeScenePlayers() {
     const character = state.characters.find((item) => item.id === participant.characterId);
     const characterName = character?.nombre || participant.botCharacterName || 'Sin personaje';
     const deadLabel = isParticipantDead(participant.uid) ? ' · ☠️ Eliminado' : '';
+    const sectionLabel = getParticipantSection(participant).replace('-', ' ').toUpperCase();
     const btn = document.createElement('button');
     btn.type = 'button';
     btn.className = 'character-option';
-    btn.innerHTML = `<strong>${participant.name}</strong><br><span class="meta">${characterName}${deadLabel}</span>`;
+    btn.innerHTML = `<strong>${participant.name}</strong><br><span class="meta">${characterName}${deadLabel}</span><br><span class="meta">Sección: ${sectionLabel}</span>`;
     btn.addEventListener('click', () => {
       state.selectedCrimeParticipantUid = participant.uid;
       sceneCharacterDetail.innerHTML = character
