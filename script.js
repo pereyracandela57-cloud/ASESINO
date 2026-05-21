@@ -119,11 +119,19 @@ const crimePhasesPanel = document.getElementById('crime-phases-panel');
 const phasesList = document.getElementById('phases-list');
 const phaseProgress = document.getElementById('phase-progress');
 const nextPhaseBtn = document.getElementById('next-phase-btn');
-const dawnOverlay = document.getElementById('dawn-overlay');
-const dawnMessage = document.getElementById('dawn-message');
-const dawnNextPhaseBtn = document.getElementById('dawn-next-phase-btn');
-const closeDawnBtn = document.getElementById('close-dawn-btn');
-const DAY_PHASES = ['Noche', 'Amanecer', 'Medio día', 'Atardecer'];
+const DAY_PHASES = [
+  'Noche',
+  'Amanecer',
+  'Debate en salas',
+  'Votación final',
+];
+
+const PHASE_DESCRIPTIONS = {
+  1: 'Fase 1: ocurre el evento inicial.',
+  2: 'Fase 2: se investigan pistas y movimientos.',
+  3: 'Fase 3: debate libre en chats de sala (máx. 10 mensajes visibles por sala). Solo puedes leer el chat de la sala en la que estés.',
+  4: 'Fase 4: definición final del asesino.',
+};
 
 const state = {
   characters: [],
@@ -261,12 +269,15 @@ async function ensureGameRole() {
   const snapshot = await get(gameStateRef);
   let gameState = snapshot.val();
 
-  if (!gameState?.killerUid) {
+  if (!gameState?.killerUid || !gameState?.detectiveUid) {
     const members = getRealGroupMembers();
     const randomIndex = Math.floor(Math.random() * members.length);
     const killerUid = members[randomIndex]?.uid || state.user.uid;
     const detectiveCandidates = members.filter((member) => member.uid !== killerUid);
-    const detectiveUid = detectiveCandidates[Math.floor(Math.random() * detectiveCandidates.length)]?.uid || null;
+    const detectiveUid = detectiveCandidates.length
+      ? detectiveCandidates[Math.floor(Math.random() * detectiveCandidates.length)].uid
+      : killerUid;
+
     gameState = {
       killerUid,
       detectiveUid,
@@ -289,14 +300,18 @@ function renderPlayerProfile() {
   const character = getMyCharacter();
   const image = character?.image || 'https://via.placeholder.com/320x320?text=Sin+foto';
   const name = character?.nombre || state.user?.displayName || 'Jugador';
-  const roleLabel = state.gameRole === 'asesino' ? 'ASESINO' : (state.gameRole === 'detective' ? 'DETECTIVE' : 'CIVIL');
+  const roleLabel = state.gameRole === 'asesino'
+    ? 'ASESINO'
+    : (state.gameRole === 'detective' ? 'DETECTIVE' : 'CIVIL');
   const isDead = isParticipantDead(state.user?.uid);
   const bloodBadge = state.gameRole === 'asesino' ? '<span class="blood-drop" title="Asesino">🩸</span>' : '';
+  const detectiveBadge = state.gameRole === 'detective' ? '<span class="blood-drop" title="Detective">👮</span>' : '';
 
   playerProfile.innerHTML = `
     <div class="profile-image-wrap">
       <img src="${image}" alt="${name}" class="profile-image" />
       ${bloodBadge}
+      ${detectiveBadge}
     </div>
     <h4>${name}</h4>
     <p class="meta"><strong>Personaje elegido:</strong> ${character?.nombre || 'Sin asignar'}</p>
@@ -398,14 +413,21 @@ async function killParticipant(targetUid) {
 
   if (killedUids[targetUid]) return;
 
+  const targetIsDetective = latestGame.detectiveUid === targetUid;
   await set(gameRef, {
     ...latestGame,
-    status: latestGame.status || 'active',
+    status: targetIsDetective ? 'finished' : (latestGame.status || 'active'),
+    winner: targetIsDetective ? 'detective' : (latestGame.winner || null),
+    endedAt: targetIsDetective ? Date.now() : (latestGame.endedAt || null),
     killedUids: {
       ...killedUids,
       [targetUid]: Date.now(),
     },
   });
+
+  if (targetIsDetective) {
+    alert('Intentaste asesinar al detective. ¡Perdiste la partida!');
+  }
 }
 
 async function accuseParticipant(targetUid) {
@@ -593,9 +615,12 @@ function renderPhasesPanel() {
   const dead = isParticipantDead(state.user?.uid);
   const alreadyVoted = Boolean(state.user?.uid && phaseVotes[state.user.uid]);
 
-  phasesList.innerHTML = DAY_PHASES.map((name, index) => (
-    `<li class="${index + 1 === currentPhase ? 'active' : ''}">Fase ${index + 1}: ${name}</li>`
-  )).join('');
+  phasesList.innerHTML = DAY_PHASES.map((name, index) => {
+    const phaseNumber = index + 1;
+    const isActive = phaseNumber === currentPhase;
+    const description = PHASE_DESCRIPTIONS[phaseNumber] || '';
+    return `<li class="${isActive ? 'active' : ''}"><strong>Fase ${phaseNumber}: ${name}</strong><br /><span class="meta">${description}</span></li>`;
+  }).join('');
   phaseProgress.textContent = `Votos para avanzar: ${votesCount}/${realPlayerUids.length || 0}`;
   nextPhaseBtn.disabled = !state.user || state.gameState?.status !== 'active' || alreadyVoted || dead;
   nextPhaseBtn.textContent = dead ? 'HAS SIDO ASESINADO' : (alreadyVoted ? 'VOTO REGISTRADO' : 'SIGUIENTE FASE');
@@ -1147,6 +1172,9 @@ onAuthStateChanged(auth, async (user) => {
       const games = snapshot.val() || {};
       const groupId = state.currentGroup?.id;
       state.gameState = groupId ? games[groupId] || null : null;
+      state.gameRole = state.gameState?.killerUid === state.user?.uid
+        ? 'asesino'
+        : (state.gameState?.detectiveUid === state.user?.uid ? 'detective' : 'civil');
       const amIDead = isParticipantDead(state.user?.uid);
       if (amIDead && !state.deathAlertShown) {
         state.deathAlertShown = true;
