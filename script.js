@@ -53,6 +53,19 @@ const BOT_NAMES = [
   'PAPÁ DE BOB',
 ];
 
+
+const BOT_PROFILE_EMOJI = '👤';
+
+function getBotAvatarDataUrl() {
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128"><rect width="100%" height="100%" fill="#080808"/><text x="50%" y="50%" dominant-baseline="middle" text-anchor="middle" font-size="76">${BOT_PROFILE_EMOJI}</text></svg>`;
+  return `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`;
+}
+
+function getParticipantProfileImage(participant, character) {
+  if (participant?.fake) return getBotAvatarDataUrl();
+  return character?.image || 'https://via.placeholder.com/64x64?text=?';
+}
+
 const BOT_DESCRIPTIONS = {
   BOB: 'Se llama Bob, y bueno su apodo es Bob',
   'HERMANO DE BOB': 'Es el hermano de Bob. Se parece mucho a Bob',
@@ -385,22 +398,12 @@ async function ensureGameRole() {
 }
 
 function renderPlayerProfile() {
-  const character = getMyCharacter();
-  const image = character?.image || 'https://via.placeholder.com/320x320?text=Sin+foto';
-  const name = character?.nombre || state.user?.displayName || 'Jugador';
-  const roleLabel = state.gameRole === 'asesino'
-    ? 'ASESINO'
-    : (state.gameRole === 'detective' ? 'DETECTIVE' : 'CIVIL');
-  const isDead = isParticipantDead(state.user?.uid);
-  const bloodBadge = state.gameRole === 'asesino' ? '<span class="blood-drop" title="Asesino">🩸</span>' : '';
-  const detectiveBadge = state.gameRole === 'detective' ? '<span class="blood-drop" title="Detective">👮</span>' : '';
   const participantsInSection = getParticipantsInCurrentSection(
     normalizeGroupMembers(state.currentGroup?.participants || []),
   );
-
   const miniCards = participantsInSection.map((participant) => {
     const participantCharacter = state.characters.find((item) => item.id === participant.characterId);
-    const participantImage = participantCharacter?.image || 'https://via.placeholder.com/64x64?text=?';
+    const participantImage = getParticipantProfileImage(participant, participantCharacter);
     const participantName = participantCharacter?.nombre || participant.name || 'Jugador';
     const status = isParticipantDead(participant.uid) ? 'Eliminado' : 'Activo';
     return `
@@ -417,17 +420,6 @@ function renderPlayerProfile() {
     : 'SIN SECCIÓN';
 
   playerProfile.innerHTML = `
-    <div class="profile-image-wrap">
-      <img src="${image}" alt="${name}" class="profile-image" />
-      ${bloodBadge}
-      ${detectiveBadge}
-    </div>
-    <h4>${name}</h4>
-    <p class="meta"><strong>Personaje elegido:</strong> ${character?.nombre || 'Sin asignar'}</p>
-    <p class="meta"><strong>Rol secreto:</strong> ${roleLabel}</p>
-    <p class="meta">Este rol solo lo ves tú.</p>
-    ${isDead ? '<p class="meta"><strong>Estado:</strong> Eliminado (solo espectador)</p>' : ''}
-    <hr class="mini-divider" />
     <p class="meta"><strong>En tu sección (${sectionLabel}):</strong> ${participantsInSection.length} jugador(es)/bot(s)</p>
     <div class="section-player-mini-grid">${miniCards || '<p class="meta">No hay participantes en esta sección.</p>'}</div>
   `;
