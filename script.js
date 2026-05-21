@@ -164,10 +164,10 @@ const DAY_PHASES = [
 ];
 
 const PHASE_DESCRIPTIONS = {
-  1: 'Fase 1: ocurre el evento inicial.',
+  1: 'Fase 1: el asesino decide a quién asesinar durante la noche.',
   2: 'Fase 2: se investigan pistas y movimientos.',
   3: 'Fase 3: debate libre en chats de sala (máx. 10 mensajes visibles por sala). Solo puedes leer el chat de la sala en la que estés.',
-  4: 'Fase 4: definición final del asesino.',
+  4: 'Fase 4: el detective decide a quién culpar como asesino.',
 };
 
 const state = {
