@@ -118,7 +118,19 @@ const crimePhasesPanel = document.getElementById('crime-phases-panel');
 const phasesList = document.getElementById('phases-list');
 const phaseProgress = document.getElementById('phase-progress');
 const nextPhaseBtn = document.getElementById('next-phase-btn');
-const DAY_PHASES = ['Noche', 'Amanecer', 'Medio día', 'Atardecer'];
+const DAY_PHASES = [
+  'Noche',
+  'Amanecer',
+  'Debate en salas',
+  'Votación final',
+];
+
+const PHASE_DESCRIPTIONS = {
+  1: 'Fase 1: ocurre el evento inicial.',
+  2: 'Fase 2: se investigan pistas y movimientos.',
+  3: 'Fase 3: debate libre en chats de sala (máx. 10 mensajes visibles por sala). Solo puedes leer el chat de la sala en la que estés.',
+  4: 'Fase 4: definición final del asesino.',
+};
 
 const state = {
   characters: [],
@@ -540,12 +552,23 @@ function renderPhasesPanel() {
   const dead = isParticipantDead(state.user?.uid);
   const alreadyVoted = Boolean(state.user?.uid && phaseVotes[state.user.uid]);
 
-  phasesList.innerHTML = DAY_PHASES.map((name, index) => (
-    `<li class="${index + 1 === currentPhase ? 'active' : ''}">Fase ${index + 1}: ${name}</li>`
-  )).join('');
+  phasesList.innerHTML = DAY_PHASES.map((name, index) => {
+    const phaseNumber = index + 1;
+    const isActive = phaseNumber === currentPhase;
+    const description = PHASE_DESCRIPTIONS[phaseNumber] || '';
+    return `<li class="${isActive ? 'active' : ''}"><strong>Fase ${phaseNumber}: ${name}</strong><br /><span class="meta">${description}</span></li>`;
+  }).join('');
   phaseProgress.textContent = `Votos para avanzar: ${votesCount}/${realPlayerUids.length || 0}`;
   nextPhaseBtn.disabled = !state.user || state.gameState?.status !== 'active' || alreadyVoted || dead;
-  nextPhaseBtn.textContent = dead ? 'HAS SIDO ASESINADO' : (alreadyVoted ? 'VOTO REGISTRADO' : 'SIGUIENTE FASE');
+  if (dead) {
+    nextPhaseBtn.textContent = 'HAS SIDO ASESINADO';
+  } else if (alreadyVoted) {
+    nextPhaseBtn.textContent = 'VOTO REGISTRADO';
+  } else if (currentPhase === 3) {
+    nextPhaseBtn.textContent = 'PASAR A FASE 4';
+  } else {
+    nextPhaseBtn.textContent = 'SIGUIENTE FASE';
+  }
 }
 
 function openCrimeScenePhasesTab() {
