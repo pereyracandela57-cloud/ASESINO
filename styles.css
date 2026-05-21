@@ -165,8 +165,10 @@ textarea { min-height: 92px; resize: vertical; }
 .empty-msg { color: #9b9b9b; margin-top: 14px; }
 .character-detail-content img {
   width: 100%;
-  max-height: 320px;
-  object-fit: cover;
+  height: clamp(240px, 45vh, 420px);
+  object-fit: contain;
+  object-position: center;
+  background: #090909;
   border-radius: 12px;
   margin-bottom: 12px;
 }
@@ -469,7 +471,9 @@ textarea { min-height: 92px; resize: vertical; }
 .profile-image {
   width: 100%;
   height: 100%;
-  object-fit: cover;
+  object-fit: contain;
+  object-position: center;
+  background: #090909;
   border-radius: 50%;
   border: 2px solid #6a0000;
 }
@@ -543,7 +547,9 @@ textarea { min-height: 92px; resize: vertical; }
   width: 58px;
   height: 58px;
   border-radius: 50%;
-  object-fit: cover;
+  object-fit: contain;
+  object-position: center;
+  background: #090909;
   border: 1px solid #7a1f1f;
   margin-bottom: 4px;
 }
